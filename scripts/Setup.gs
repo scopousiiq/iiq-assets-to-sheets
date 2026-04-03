@@ -222,7 +222,7 @@ function setupInstructionsSheet(ss) {
     [''],                                                                                   // 29
     ['1. SETUP SPREADSHEET'],                                                               // 30
     ['   • Menu: iiQ Assets > Setup > Setup Spreadsheet'],                                  // 31
-    ['   • Creates all data sheets, analytics sheets, and configures formulas'],             // 32
+    ['   • Creates all data sheets, 8 default analytics sheets, and configures formulas'],   // 32
     ['   • WARNING: This is a full reset — all existing data and config will be deleted'],   // 33
     [''],                                                                                   // 34
     ['2. CONFIGURE API CREDENTIALS (Config sheet)'],                                        // 35
@@ -359,7 +359,7 @@ function setupInstructionsSheet(ss) {
     ['    Count and percentage of total by each asset status (Active, Retired, etc.).'],
     [''],
     ['  • DeviceReadiness — What is actually deployable at each school right now?'],
-    ['    Active + unassigned devices minus those with open tickets, by location.'],
+    ['    Per-location totals for deployable, in repair, lost/stolen, retired, and readiness rate.'],
     [''],
     ['  • SpareAssets — Do I have enough working spares at each school?'],
     ['    Spare counts vs total assigned, with spare ratio per location.'],
@@ -371,7 +371,7 @@ function setupInstructionsSheet(ss) {
     ['    Count of distinct models per location. High fragmentation = harder support.'],
     [''],
     ['  • UnassignedInventory — Where is idle inventory sitting?'],
-    ['    Unassigned devices by location with status and model details.'],
+    ['    Unassigned counts by location with active count, average age, and estimated value.'],
     [''],
     [''],
     ['  SERVICE & RELIABILITY — Tickets, break rates, and problem models'],
@@ -401,11 +401,11 @@ function setupInstructionsSheet(ss) {
     ['    available, falls back to CreatedDate. Answers "when is the replacement cliff?"'],
     [''],
     ['  • ReplacementPlanning — What do I need to buy before next school year?'],
-    ['    Devices needing replacement by NEXT_SCHOOL_YEAR_START, grouped by location'],
-    ['    and model, with estimated costs.'],
+    ['    Per-location counts of devices currently over the age threshold, projected to'],
+    ['    cross it by NEXT_SCHOOL_YEAR_START, and estimated replacement cost.'],
     [''],
-    ['  • ReplacementForecast — Projected replacement volume/cost (5-year lifecycle)'],
-    ['    How many devices need replacing in 1, 2, and 3 years.'],
+    ['  • ReplacementForecast — Projected replacement volume/cost by year'],
+    ['    Future replacement years, device counts, average price, and estimated cost.'],
     [''],
     ['  • WarrantyTimeline — Upcoming warranty expirations by quarter'],
     ['    Warranty expiration schedule for proactive planning.'],
@@ -429,14 +429,14 @@ function setupInstructionsSheet(ss) {
     ['    Total, active, retired, and average age by model/manufacturer.'],
     ['    Identifies which models dominate the fleet.'],
     [''],
-    ['  • LocationModelBreakdown — What models are at each school? (cross-tab)'],
-    ['    Location x model matrix showing device counts.'],
+    ['  • LocationModelBreakdown — What models are at each school?'],
+    ['    Flat location/model breakdown with counts, active vs retired, and average age.'],
     [''],
     ['  • LocationModelFiltered — Show me one school\'s model mix (dropdown-driven)'],
     ['    Single-location model breakdown with a dropdown selector.'],
     [''],
     ['  • CategoryBreakdown — Inventory by device category (Chromebook, laptop, etc.)'],
-    ['    Counts and percentages by category type.'],
+    ['    Counts, active vs retired, average age, and total value by category.'],
     [''],
     ['  • ManufacturerSummary — Device count, age, warranty, tickets by manufacturer'],
     ['    Which vendors are you invested in, and how are their devices performing?'],
@@ -469,9 +469,10 @@ function setupInstructionsSheet(ss) {
     ['  • Refresh Changed Assets — On-demand incremental update (ModifiedDate filter)'],     // 221
     ['  • Apply Formulas — Add/refresh calculated columns (AgeDays, AgeYears, WarrantyStatus)'], // 222
     ['  • Show Status — Display loading progress and last refresh date'],                    // 223
-    ['  • Clear Data + Reset Progress — Clear all asset data (requires triggers removed)'],  // 224
-    ['  • Full Reload — Clear and reload from scratch (requires triggers removed)'],         // 225
-    [''],                                                                                   // 226
+    ['  • Remove Duplicates — Keep the newest row per AssetId and reapply formulas'],
+    ['  • Clear Data + Reset Progress — Clear all asset data (requires triggers removed)'],
+    ['  • Full Reload — Clear and reload from scratch (requires triggers removed)'],
+    [''],
     ['iiQ Assets > Analytics Sheets'],
     ['  Organized into four category submenus:'],
     [''],
@@ -573,7 +574,7 @@ function setupInstructionsSheet(ss) {
     ['4. Set up scheduled refresh in Power BI Service'],                                     // 304
     [''],                                                                                   // 305
     ['Data is refreshed daily at 3 AM, so dashboards can refresh on a similar schedule.'],   // 306
-    ['Weekly full refresh completes by ~4 AM Sunday.'],                                      // 307
+    ['Weekly full refresh starts Sunday at 2 AM and may continue in 10-minute batches.'],
     [''],                                                                                   // 308
     [''],                                                                                   // 309
     ['═══════════════════════════════════════════════════════════════════════════════'],      // 310
@@ -592,15 +593,31 @@ function setupInstructionsSheet(ss) {
   // Format title
   sheet.getRange(1, 1).setFontSize(16).setFontWeight('bold').setFontColor('#1a73e8');
 
-  // Batch format section headers (getRangeList = 1 API call instead of 8)
-  const sectionRows = [4, 27, 77, 112, 257, 313, 359, 387];
-  sheet.getRangeList(sectionRows.filter(r => r <= content.length).map(r => 'A' + r))
-    .setFontWeight('bold').setFontColor('#1a73e8');
+  const sectionTitles = new Set([
+    'OVERVIEW',
+    'INITIAL SETUP',
+    'AUTOMATED TRIGGERS (Recommended)',
+    'SHEETS REFERENCE',
+    'MENU REFERENCE',
+    'TROUBLESHOOTING',
+    'DASHBOARD INTEGRATION',
+    'SUPPORT'
+  ]);
+  const sectionRanges = [];
+  const dividerRanges = [];
 
-  // Batch format divider lines (1 API call instead of 16)
-  const dividerRows = [3, 5, 26, 28, 76, 78, 111, 113, 256, 258, 312, 314, 358, 360, 386, 388];
-  sheet.getRangeList(dividerRows.filter(r => r <= content.length).map(r => 'A' + r))
-    .setFontColor('#dadce0');
+  content.forEach((row, index) => {
+    const value = row[0];
+    if (sectionTitles.has(value)) sectionRanges.push('A' + (index + 1));
+    if (typeof value === 'string' && /^═+$/.test(value)) dividerRanges.push('A' + (index + 1));
+  });
+
+  if (sectionRanges.length) {
+    sheet.getRangeList(sectionRanges).setFontWeight('bold').setFontColor('#1a73e8');
+  }
+  if (dividerRanges.length) {
+    sheet.getRangeList(dividerRanges).setFontColor('#dadce0');
+  }
 
   sheet.setFrozenRows(1);
   sheet.setTabColor('#365c96');

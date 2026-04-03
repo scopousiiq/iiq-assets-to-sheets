@@ -40,7 +40,7 @@ Sheets marked with a star (★) are created automatically by Setup Spreadsheet. 
 | ★ BudgetPlanning | What's the replacement cost per location based on warranty/age? |
 | ★ AgingAnalysis | What's our fleet age distribution? When is the replacement cliff? |
 | ReplacementPlanning | What do I need to buy before next school year? |
-| ReplacementForecast | How many devices need replacing in 1/2/3 years? |
+| ReplacementForecast | What does future replacement volume and cost look like by year? |
 | WarrantyTimeline | When does warranty expire by cohort? |
 | DeviceLifecycle | How long do devices actually last by model? |
 
@@ -51,7 +51,7 @@ Sheets marked with a star (★) are created automatically by Setup Spreadsheet. 
 | ★ FleetSummary | Top-line KPIs: total assets, value, age, warranty, tickets, assignment |
 | ★ LocationSummary | How many assets per school? How old? Warranty status? |
 | ★ ModelBreakdown | Which device models do we have? How many active vs retired? |
-| LocationModelBreakdown | What models are at each school? (cross-tab) |
+| LocationModelBreakdown | What models are at each school? (location/model breakdown) |
 | LocationModelFiltered | Show me one school's model mix (dropdown-driven) |
 | CategoryBreakdown | What types of devices? Chromebooks vs laptops vs tablets? |
 | ManufacturerSummary | Which vendors are we invested in? |
@@ -92,53 +92,62 @@ iiQ Assets
 ├── Setup
 │   ├── Setup Spreadsheet
 │   ├── Verify Configuration
-│   └── Setup Automated Triggers
+│   ├── Setup Automated Triggers
+│   ├── View Trigger Status
+│   └── Remove Automated Triggers
+├── Load Reference Data
+│   ├── Refresh Locations
+│   ├── Refresh Status Types
+│   ├── Refresh Location Enrollment
+│   ├── View Available Roles
+│   └── Refresh All Reference Data
 ├── Asset Data
 │   ├── Load / Resume Assets
-│   ├── Refresh Updated Assets
-│   └── Full Reload (All Assets)
+│   ├── Refresh Changed Assets
+│   ├── Apply Formulas
+│   ├── Show Status
+│   ├── Remove Duplicates
+│   ├── Clear Data + Reset Progress
+│   └── Full Reload
 ├── Analytics Sheets
 │   ├── Fleet Operations
-│   │   ├── ★ AssignmentOverview
-│   │   ├── ★ StatusOverview
-│   │   ├── DeviceReadiness
-│   │   ├── SpareAssets
-│   │   ├── LostStolenRate
-│   │   ├── ModelFragmentation
-│   │   ├── UnassignedInventory
+│   │   ├── ★ Assignment Overview
+│   │   ├── ★ Status Overview
+│   │   ├── Device Readiness
+│   │   ├── Spare Assets
+│   │   ├── Lost/Stolen Rate
+│   │   ├── Model Fragmentation
+│   │   ├── Unassigned Inventory
 │   │   └── Regenerate Fleet Operations
 │   ├── Service & Reliability
-│   │   ├── ★ ServiceImpact
-│   │   ├── BreakRate
-│   │   ├── HighTicketLocations
+│   │   ├── ★ Service Impact
+│   │   ├── Break Rate
+│   │   ├── High Ticket Locations
 │   │   └── Regenerate Service & Reliability
 │   ├── Budget & Planning
-│   │   ├── ★ BudgetPlanning
-│   │   ├── ★ AgingAnalysis
-│   │   ├── ReplacementPlanning
-│   │   ├── ReplacementForecast
-│   │   ├── WarrantyTimeline
-│   │   ├── DeviceLifecycle
+│   │   ├── ★ Budget Planning
+│   │   ├── ★ Aging Analysis
+│   │   ├── Replacement Planning
+│   │   ├── Replacement Forecast
+│   │   ├── Warranty Timeline
+│   │   ├── Device Lifecycle
 │   │   └── Regenerate Budget & Planning
 │   ├── Fleet Composition
-│   │   ├── ★ FleetSummary
-│   │   ├── ★ LocationSummary
-│   │   ├── ★ ModelBreakdown
-│   │   ├── LocationModelBreakdown
-│   │   ├── LocationModelFiltered
-│   │   ├── CategoryBreakdown
-│   │   ├── ManufacturerSummary
+│   │   ├── ★ Fleet Summary
+│   │   ├── ★ Location Summary
+│   │   ├── ★ Model Breakdown
+│   │   ├── Location Model Breakdown
+│   │   ├── Location Model Filtered
+│   │   ├── Category Breakdown
+│   │   ├── Manufacturer Summary
 │   │   └── Regenerate Fleet Composition
 │   ├── Regenerate All Default (★)
 │   └── Regenerate All Analytics
-└── Reference Data
-    ├── Reload Locations
-    └── Reload Status Types
 ```
 
 Default sheets (★) are created by **Setup Spreadsheet**. All sheets — default and optional — appear in their category submenu for individual regeneration or installation.
 
-**When to regenerate:** Analytics sheets use live Google Sheets formulas, so they update automatically whenever your data refreshes. Regeneration is only needed after a code update changes a formula definition. Use the per-category regenerate options, "Regenerate All Default" to rebuild just the 10 starred sheets, or "Regenerate All Analytics" to rebuild everything.
+**When to regenerate:** Analytics sheets use live Google Sheets formulas, so they update automatically whenever your data refreshes. Regeneration is only needed after a code update changes a formula definition. Use the per-category regenerate options, "Regenerate All Default" to rebuild the 8 starred sheets, or "Regenerate All Analytics" to rebuild all installed analytics sheets.
 
 ## Config Sheet
 
@@ -168,6 +177,8 @@ After initial setup, the automated triggers handle everything:
 
 The daily refresh uses iiQ's ModifiedDate filter to only pull changed records. If your district has 100,000 assets but only 200 changed today, only those 200 are fetched and updated in-place.
 
+The weekly full refresh starts Sunday at 2 AM. If the reload does not finish in a single Apps Script run, the 10-minute continue trigger keeps resuming it until the dataset is fully rebuilt.
+
 Deleted assets in iiQ are automatically excluded by the API — they are never downloaded. The weekly full reload catches edge cases like un-deleted assets reappearing.
 
 ## Connecting to Looker Studio / Power BI
@@ -178,7 +189,7 @@ Connect your BI tool directly to this Google Spreadsheet:
 - Formula columns (AgeYears, WarrantyStatus) are ready for filtering and grouping
 - **LocationEnrollment** for student device coverage metrics
 
-Data is refreshed daily at 3 AM. Weekly full refresh completes by ~4 AM Sunday.
+Data is refreshed daily at 3 AM. The weekly full refresh starts Sunday at 2 AM and may continue in 10-minute batches for larger districts.
 
 ## Troubleshooting
 
@@ -187,8 +198,8 @@ Data is refreshed daily at 3 AM. Weekly full refresh completes by ~4 AM Sunday.
 | "API configuration missing" | Fill in `API_BASE_URL` and `BEARER_TOKEN` in Config sheet |
 | Loading stops partway | Run "Load / Resume Assets" again — it resumes from where it left off |
 | Analytics show #REF errors | Run "Regenerate All Default" or the specific category regenerate |
-| Need fresh data now | Run "Refresh Updated Assets" for on-demand update |
-| Need complete reset | Remove triggers first, then run "Full Reload (All Assets)" |
+| Need fresh data now | Run "Refresh Changed Assets" for on-demand update |
+| Need complete reset | Remove automated triggers first, then run "Full Reload" |
 | "STUDENT_ROLE_ID not configured" | Run "View Available Roles" to find the ID, add it to Config |
 
 ## Project Structure
