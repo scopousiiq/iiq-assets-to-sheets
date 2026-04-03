@@ -45,15 +45,16 @@ function makeApiRequest(endpoint, method, payload, retryCount) {
     const responseText = response.getContentText();
 
     if (responseCode >= 200 && responseCode < 300) {
+      logOperation('API', 'OK', `${endpoint} - ${responseCode} in ${elapsedMs}ms`);
       Utilities.sleep(Math.floor(getThrottleMs() * 0.5));
       return JSON.parse(responseText);
     } else if ((responseCode === 429 || responseCode === 503) && retryCount < MAX_RETRIES) {
       const backoffMs = BACKOFF_BASE_MS * Math.pow(2, retryCount);
-      logOperation('API', 'RETRY', `${endpoint} - HTTP ${responseCode}, waiting ${backoffMs}ms (${retryCount + 1}/${MAX_RETRIES})`);
+      logOperation('API', 'RETRY', `${endpoint} - ${responseCode} in ${elapsedMs}ms, waiting ${backoffMs}ms (${retryCount + 1}/${MAX_RETRIES})`);
       Utilities.sleep(backoffMs);
       return makeApiRequest(endpoint, method, payload, retryCount + 1);
     } else {
-      logOperation('API', 'ERROR', `${endpoint} - HTTP ${responseCode}: ${responseText.substring(0, 200)}`);
+      logOperation('API', 'ERROR', `${endpoint} - ${responseCode} in ${elapsedMs}ms: ${responseText.substring(0, 200)}`);
       throw new Error(`API Error ${responseCode}: ${responseText.substring(0, 200)}`);
     }
   } catch (e) {
@@ -73,12 +74,25 @@ function makeApiRequest(endpoint, method, payload, retryCount) {
  * @param {Array} filters - Array of filter objects [{Facet, Id/Value}]
  * @param {number} page - Page index (0-based)
  * @param {number} pageSize - Records per page
+ * @param {Object} sortOptions - Optional sort options {field, direction}
  * @returns {Object} - API response with Items and Paging
+ *
+ * Query parameters:
+ *   $p - Zero-based page index
+ *   $s - Page size (number of records)
+ *   $o - Sort expression (e.g., "AssetCreatedDate asc" or "AssetModifiedDate desc")
  */
-function searchAssets(filters, page, pageSize) {
+function searchAssets(filters, page, pageSize, sortOptions) {
   const config = getConfig();
   const size = pageSize || config.assetBatchSize;
-  const endpoint = `/v1.0/assets?$p=${page || 0}&$s=${size}`;
+
+  let endpoint = `/v1.0/assets?$p=${page || 0}&$s=${size}`;
+
+  if (sortOptions && sortOptions.field) {
+    const sortExpr = `${sortOptions.field} ${sortOptions.direction || 'asc'}`;
+    endpoint += `&$o=${encodeURIComponent(sortExpr)}`;
+  }
+
   return makeApiRequest(endpoint, 'POST', { Filters: filters || [] });
 }
 
@@ -110,20 +124,22 @@ function getAllAssetStatusTypes() {
 }
 
 /**
- * Get custom field definitions for assets
- * @returns {Array} - Array of custom field definitions
+ * Get all site roles (Student, Agent, etc.)
+ * @returns {Array} - Array of role objects with RoleId, RoleName, Users count
  */
-function getAssetCustomFields() {
-  const response = makeApiRequest('/v1.0/custom-fields/for/asset', 'POST', {});
+function getSiteRoles() {
+  const response = makeApiRequest('/v1.0/sites/roles', 'GET');
   return response.Items || response || [];
 }
 
 /**
- * Get custom field values for a batch of assets
- * @param {Array} assetIds - Array of asset UUID strings
- * @returns {Object} - Map of assetId -> custom field values
+ * Count users matching filters (returns count only, no user records)
+ * Uses search endpoint with $s=1 to get Paging.TotalRows — supports all facet filters.
+ * @param {Array} filters - Array of filter objects [{Facet, Id/Name, Selected}]
+ * @returns {number} - Total count of matching users
  */
-function getCustomFieldValuesForAssets(assetIds) {
-  const response = makeApiRequest('/v1.0/custom-fields/values/for/assets', 'POST', assetIds);
-  return response.Items || response || [];
+function getUserCount(filters) {
+  const response = makeApiRequest('/v1.0/users?$s=1', 'POST', { Filters: filters || [] });
+  return (response && response.Paging && response.Paging.TotalRows) || 0;
 }
+

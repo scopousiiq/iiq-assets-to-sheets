@@ -39,18 +39,16 @@ function getConfig() {
     throttleMs: getIntValue(rawConfig['THROTTLE_MS'], 1000),
     assetBatchSize: getIntValue(rawConfig['ASSET_BATCH_SIZE'], 500),
 
+    // Enrollment
+    studentRoleId: getStringValue(rawConfig['STUDENT_ROLE_ID']),
+
     // Asset loading progress
     assetTotalPages: getIntValue(rawConfig['ASSET_TOTAL_PAGES'], -1),
     assetLastPage: getIntValue(rawConfig['ASSET_LAST_PAGE'], -1),
     assetComplete: getBoolValue(rawConfig['ASSET_COMPLETE']),
 
-    // Custom field enrichment progress
-    enrichLastIdx: getIntValue(rawConfig['ENRICH_LAST_IDX'], -1),
-    enrichComplete: getBoolValue(rawConfig['ENRICH_COMPLETE']),
-
-    // Custom field config (set after discovery)
-    aueFieldId: getStringValue(rawConfig['AUE_CUSTOM_FIELD_ID']),
-    aueFieldName: getStringValue(rawConfig['AUE_CUSTOM_FIELD_NAME']),
+    // Incremental refresh
+    lastRefreshDate: getStringValue(rawConfig['LAST_REFRESH_DATE']),
   };
 }
 

@@ -10,15 +10,19 @@
 function setupAutomatedTriggers() {
   removeAllProjectTriggers();
 
-  // Continue any in-progress loading (Phase 1 or Phase 2)
+  // Continue any in-progress initial loading (every 10 min)
   ScriptApp.newTrigger('triggerDataContinue')
     .timeBased().everyMinutes(10).create();
 
-  // Weekly full refresh to catch changes (Sunday 2 AM)
+  // Daily incremental refresh (3 AM)
+  ScriptApp.newTrigger('triggerDailyRefresh')
+    .timeBased().everyDays(1).atHour(3).create();
+
+  // Weekly full refresh to catch edge cases (Sunday 2 AM)
   ScriptApp.newTrigger('triggerWeeklyFullRefresh')
     .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(2).create();
 
-  logOperation('Triggers', 'SETUP', 'Automated triggers installed (DataContinue 10min, WeeklyRefresh Sun 2AM)');
+  logOperation('Triggers', 'SETUP', 'Automated triggers installed (DataContinue 10min, DailyRefresh 3AM, WeeklyRefresh Sun 2AM)');
 }
 
 function removeAllProjectTriggers() {
@@ -34,10 +38,8 @@ function removeAllProjectTriggers() {
 // =============================================================================
 
 /**
- * Continue any in-progress loading.
- * Phase 1: If asset load is incomplete, continue pagination.
- * Phase 2: If enrichment is incomplete, continue enrichment.
- * If both complete, applies formulas if not yet applied.
+ * Continue any in-progress initial loading.
+ * Once initial load is complete, this trigger is a no-op.
  */
 function triggerDataContinue() {
   const lock = tryAcquireScriptLock();
@@ -49,22 +51,67 @@ function triggerDataContinue() {
   try {
     const config = getConfig();
 
-    // Phase 1: Continue asset loading
+    // Phase 1: Continue asset loading if incomplete
     if (!config.assetComplete) {
       logOperation('Trigger', 'START', 'triggerDataContinue - continuing asset load');
-      loadAssetData(false);
-      return;
+      const result = loadAssetData(false);
+
+      if (result === 'complete') {
+        applyAssetFormulas();
+        logOperation('Trigger', 'COMPLETE', 'triggerDataContinue - initial load finished, formulas applied');
+        // Fall through to check enrollment
+      } else {
+        return; // Still loading assets, enrollment waits
+      }
     }
 
-    // Phase 2: Continue enrichment
-    if (config.aueFieldId && !config.enrichComplete) {
-      logOperation('Trigger', 'START', 'triggerDataContinue - continuing enrichment');
-      enrichAssetData(false);
-      return;
+    // Phase 2: Continue enrollment loading if configured and incomplete
+    if (config.studentRoleId) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const enrollSheet = ss.getSheetByName('LocationEnrollment');
+      const locSheet = ss.getSheetByName('Locations');
+      const enrollRows = enrollSheet ? enrollSheet.getLastRow() - 1 : 0;
+      const locRows = locSheet ? locSheet.getLastRow() - 1 : 0;
+
+      if (locRows > 0 && enrollRows < locRows) {
+        logOperation('Trigger', 'START', `triggerDataContinue - continuing enrollment (${enrollRows}/${locRows})`);
+        loadLocationEnrollment();
+        return;
+      }
     }
 
-    // Both complete — nothing to do
     logOperation('Trigger', 'SKIP', 'triggerDataContinue - all loading complete');
+  } finally {
+    releaseScriptLock(lock);
+  }
+}
+
+/**
+ * Daily incremental refresh: fetch assets modified since last refresh.
+ * Reapplies formulas after refresh to cover new rows.
+ */
+function triggerDailyRefresh() {
+  const lock = tryAcquireScriptLock();
+  if (!lock) {
+    logOperation('Trigger', 'SKIP', 'triggerDailyRefresh - another operation in progress');
+    return;
+  }
+
+  try {
+    const config = getConfig();
+    if (!config.assetComplete) {
+      logOperation('Trigger', 'SKIP', 'triggerDailyRefresh - initial load not complete');
+      return;
+    }
+
+    logOperation('Trigger', 'START', 'triggerDailyRefresh');
+    const result = refreshAssetData(false);
+
+    if (result && typeof result === 'object' && (result.updated > 0 || result.added > 0)) {
+      applyAssetFormulas();
+    }
+
+    logOperation('Trigger', 'COMPLETE', `triggerDailyRefresh - ${result.updated || 0} updated, ${result.added || 0} new`);
   } finally {
     releaseScriptLock(lock);
   }
@@ -86,19 +133,24 @@ function triggerWeeklyFullRefresh() {
     // Refresh reference data
     loadLocations();
     loadStatusTypes();
-    discoverCustomFields();
 
     // Clear and reload asset data
     clearAssetDataAndReset();
     loadAssetData(false);
 
-    // If load completed in one run, enrich and apply formulas
+    // If load completed in one run, apply formulas
     const config = getConfig();
-    if (config.assetComplete && config.aueFieldId) {
-      enrichAssetData(false);
-    }
     if (config.assetComplete) {
       applyAssetFormulas();
+    }
+
+    // Enrollment requires STUDENT_ROLE_ID — skip if not configured
+    if (config.studentRoleId) {
+      const enrollSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('LocationEnrollment');
+      if (enrollSheet && enrollSheet.getLastRow() > 1) {
+        enrollSheet.getRange(2, 1, enrollSheet.getLastRow() - 1, 6).clearContent();
+      }
+      loadLocationEnrollment();
     }
 
     logOperation('Trigger', 'COMPLETE', 'triggerWeeklyFullRefresh');

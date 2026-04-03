@@ -1,0 +1,7 @@
+.DS_Store
+*.swp
+*.swo
+*~
+.clasp.json
+.mcp.json
+REQUIREMENTS-*.md

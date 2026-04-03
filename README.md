@@ -1,26 +1,64 @@
 # iiq-assets-to-sheets
 
-Google Apps Script project that extracts Incident IQ asset data into Google Sheets for device reporting, Chromebook AUE tracking, and replacement cycle planning.
+Google Apps Script project that extracts Incident IQ (iiQ) asset data into Google Sheets for device reporting, replacement cycle planning, and dashboard consumption. Designed for school district IT teams.
 
 ## What You Get
 
 **Data loaded automatically from your iiQ instance:**
-- Complete asset inventory with model, manufacturer, location, status, and purchase info
-- AUE (Auto Update Expiration) dates from custom fields
+- Complete asset inventory (28 columns) — identity, device model, location, owner, status, purchase info, storage, tickets, and more
 - Location directory and asset status types
+- Student enrollment and device coverage per school (optional)
 
-**Pre-built analytics sheets (formula-driven, auto-updating):**
-- **Location Summary** — Asset counts, AUE status, and average age per school
-- **Model Breakdown** — Device model inventory with active/retired counts
-- **AUE Planning** — Replacement timeline by fiscal year
-- **Budget Planning** — Estimated replacement costs per location
-- **Status Overview** — Active, retired, in storage breakdown
+**23 analytics sheets organized by category (formula-driven, auto-updating):**
 
-**Calculated columns on every asset:**
-- AUE Status (Expired / < 6 Months / < 1 Year / < 2 Years / OK)
-- Device age in days and years
-- Warranty status (Active / Expiring / Expired)
-- Replacement cycle (fiscal year when AUE expires)
+Sheets marked with a star (★) are created automatically by Setup Spreadsheet. Optional sheets can be installed individually from the **iiQ Assets > Analytics Sheets** menu.
+
+### Fleet Operations
+
+| Sheet | What It Answers |
+|-------|-----------------|
+| ★ AssignmentOverview | How many devices are assigned vs idle per location? |
+| ★ StatusOverview | What's the breakdown of active/retired/in-storage? |
+| DeviceReadiness | What's actually deployable at each school right now? |
+| SpareAssets | Do I have enough working spares at each school? |
+| LostStolenRate | Which schools are losing devices? |
+| ModelFragmentation | Which schools are a patchwork of device models? |
+| UnassignedInventory | Where is idle inventory sitting? |
+
+### Service & Reliability
+
+| Sheet | What It Answers |
+|-------|-----------------|
+| ★ ServiceImpact | Which models generate the most support tickets? |
+| BreakRate | Which individual devices and models have the most tickets? |
+| HighTicketLocations | Which schools have the most device problems? |
+
+### Budget & Planning
+
+| Sheet | What It Answers |
+|-------|-----------------|
+| ★ BudgetPlanning | What's the replacement cost per location based on warranty/age? |
+| ★ AgingAnalysis | What's our fleet age distribution? When is the replacement cliff? |
+| ReplacementPlanning | What do I need to buy before next school year? |
+| ReplacementForecast | How many devices need replacing in 1/2/3 years? |
+| WarrantyTimeline | When does warranty expire by cohort? |
+| DeviceLifecycle | How long do devices actually last by model? |
+
+### Fleet Composition
+
+| Sheet | What It Answers |
+|-------|-----------------|
+| ★ FleetSummary | Top-line KPIs: total assets, value, age, warranty, tickets, assignment |
+| ★ LocationSummary | How many assets per school? How old? Warranty status? |
+| ★ ModelBreakdown | Which device models do we have? How many active vs retired? |
+| LocationModelBreakdown | What models are at each school? (cross-tab) |
+| LocationModelFiltered | Show me one school's model mix (dropdown-driven) |
+| CategoryBreakdown | What types of devices? Chromebooks vs laptops vs tablets? |
+| ManufacturerSummary | Which vendors are we invested in? |
+
+**Calculated columns on every asset (ARRAYFORMULA — instant even at 300K+ rows):**
+- Device age in days and years (falls back to CreatedDate if PurchasedDate is empty)
+- Warranty status: Active / Expiring (< 90 days) / Expired / None
 
 ## Quick Start
 
@@ -31,58 +69,141 @@ Google Apps Script project that extracts Incident IQ asset data into Google Shee
 5. Run **iiQ Assets > Setup > Setup Spreadsheet**
 6. Fill in the **Config** sheet:
    - `API_BASE_URL`: Your iiQ instance URL (e.g., `https://yourdistrict.incidentiq.com`)
-   - `BEARER_TOKEN`: Your API token
+   - `BEARER_TOKEN`: Your API token (Admin > Integrations > API)
+   - `SITE_ID`: Optional — only needed for multi-site instances
 7. Run **iiQ Assets > Setup > Verify Configuration**
-8. Run **iiQ Assets > Load Reference Data > Refresh All Reference Data**
-9. Run **iiQ Assets > Asset Data > Continue Loading** (repeat until complete for large inventories)
-10. Run **iiQ Assets > Asset Data > Enrich Custom Fields** (populates AUE dates)
-11. Run **iiQ Assets > Asset Data > Apply Formulas**
-12. Run **iiQ Assets > Setup > Setup Automated Triggers** for weekly refresh
+8. Run **iiQ Assets > Asset Data > Load / Resume Assets**
+   - Reference data (locations, status types) loads automatically on first run
+   - Script runs ~5.5 minutes per batch, then pauses (Apps Script time limit)
+9. Run **iiQ Assets > Setup > Setup Automated Triggers**
+   - Automation finishes loading, applies formulas, and keeps data current going forward
 
-## AUE Date Support
+### Replacement Planning Config (Optional)
 
-AUE (Auto Update Expiration) is the date when a Chromebook stops receiving Chrome OS updates. This project supports AUE tracking via iiQ custom fields:
+Two Config keys control the ReplacementPlanning and ReplacementForecast sheets:
 
-1. **Automatic detection**: When you run "Discover Custom Fields", the system searches for fields named like "AUE", "Auto Update Expiration", or "End of Life"
-2. **Manual configuration**: If auto-detection doesn't find it, set `AUE_CUSTOM_FIELD_ID` in the Config sheet to your custom field's UUID
+- `REPLACEMENT_AGE_YEARS` — devices older than this are flagged for replacement (default: 4)
+- `NEXT_SCHOOL_YEAR_START` — target date for planning (default: 2026-07-01, format YYYY-MM-DD)
 
-If your district doesn't use a custom field for AUE, the AUE-related columns and analytics will simply show blank — everything else works independently.
+## Menu Structure
+
+```
+iiQ Assets
+├── Setup
+│   ├── Setup Spreadsheet
+│   ├── Verify Configuration
+│   └── Setup Automated Triggers
+├── Asset Data
+│   ├── Load / Resume Assets
+│   ├── Refresh Updated Assets
+│   └── Full Reload (All Assets)
+├── Analytics Sheets
+│   ├── Fleet Operations
+│   │   ├── ★ AssignmentOverview
+│   │   ├── ★ StatusOverview
+│   │   ├── DeviceReadiness
+│   │   ├── SpareAssets
+│   │   ├── LostStolenRate
+│   │   ├── ModelFragmentation
+│   │   ├── UnassignedInventory
+│   │   └── Regenerate Fleet Operations
+│   ├── Service & Reliability
+│   │   ├── ★ ServiceImpact
+│   │   ├── BreakRate
+│   │   ├── HighTicketLocations
+│   │   └── Regenerate Service & Reliability
+│   ├── Budget & Planning
+│   │   ├── ★ BudgetPlanning
+│   │   ├── ★ AgingAnalysis
+│   │   ├── ReplacementPlanning
+│   │   ├── ReplacementForecast
+│   │   ├── WarrantyTimeline
+│   │   ├── DeviceLifecycle
+│   │   └── Regenerate Budget & Planning
+│   ├── Fleet Composition
+│   │   ├── ★ FleetSummary
+│   │   ├── ★ LocationSummary
+│   │   ├── ★ ModelBreakdown
+│   │   ├── LocationModelBreakdown
+│   │   ├── LocationModelFiltered
+│   │   ├── CategoryBreakdown
+│   │   ├── ManufacturerSummary
+│   │   └── Regenerate Fleet Composition
+│   ├── Regenerate All Default (★)
+│   └── Regenerate All Analytics
+└── Reference Data
+    ├── Reload Locations
+    └── Reload Status Types
+```
+
+Default sheets (★) are created by **Setup Spreadsheet**. All sheets — default and optional — appear in their category submenu for individual regeneration or installation.
+
+**When to regenerate:** Analytics sheets use live Google Sheets formulas, so they update automatically whenever your data refreshes. Regeneration is only needed after a code update changes a formula definition. Use the per-category regenerate options, "Regenerate All Default" to rebuild just the 10 starred sheets, or "Regenerate All Analytics" to rebuild everything.
+
+## Config Sheet
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| `API_BASE_URL` | Yes | Your iiQ instance URL (e.g., `https://yourdistrict.incidentiq.com`) |
+| `BEARER_TOKEN` | Yes | API token from Admin > Integrations > API |
+| `SITE_ID` | No | Site UUID (only for multi-site instances) |
+| `PAGE_SIZE` | No | Records per API call (default 100) |
+| `THROTTLE_MS` | No | Delay between requests in ms (default 1000) |
+| `ASSET_BATCH_SIZE` | No | Assets per page for bulk load (default 500) |
+| `STUDENT_ROLE_ID` | No | Role UUID for student enrollment counts |
+| `REPLACEMENT_AGE_YEARS` | No | Device age threshold for replacement planning (default 4) |
+| `NEXT_SCHOOL_YEAR_START` | No | Target date for replacement planning (default 2026-07-01, format YYYY-MM-DD) |
+
+Progress-tracking keys (`ASSET_LAST_PAGE`, `ASSET_TOTAL_PAGES`, `ASSET_COMPLETE`, `LAST_REFRESH_DATE`) are managed automatically.
 
 ## Automated Refresh
 
-After initial setup, enable automated triggers:
-- **Every 10 minutes**: Continues any interrupted loading
-- **Weekly (Sunday 2 AM)**: Full data refresh including reference data
+After initial setup, the automated triggers handle everything:
+
+| Trigger | Schedule | What It Does |
+|---------|----------|-------------|
+| `triggerDataContinue` | Every 10 min | Continues interrupted initial loading (no-op once complete) |
+| `triggerDailyRefresh` | Daily 3 AM | Incremental refresh — only fetches assets modified since last refresh |
+| `triggerWeeklyFullRefresh` | Sunday 2 AM | Full data refresh including reference data |
+
+The daily refresh uses iiQ's ModifiedDate filter to only pull changed records. If your district has 100,000 assets but only 200 changed today, only those 200 are fetched and updated in-place.
+
+Deleted assets in iiQ are automatically excluded by the API — they are never downloaded. The weekly full reload catches edge cases like un-deleted assets reappearing.
 
 ## Connecting to Looker Studio / Power BI
 
 Connect your BI tool directly to this Google Spreadsheet:
 - **AssetData** sheet for detailed device-level data
 - **Analytics sheets** for pre-aggregated summaries
-- Formula columns (AUEStatus, AgeYears, WarrantyStatus, ReplacementCycle) are ready for filtering and grouping
+- Formula columns (AgeYears, WarrantyStatus) are ready for filtering and grouping
+- **LocationEnrollment** for student device coverage metrics
+
+Data is refreshed daily at 3 AM. Weekly full refresh completes by ~4 AM Sunday.
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "API configuration missing" | Fill in API_BASE_URL and BEARER_TOKEN in Config sheet |
-| Loading stops partway | Run "Continue Loading" again — it resumes from where it left off |
-| No AUE data | Check CustomFields sheet, set AUE_CUSTOM_FIELD_ID manually if needed |
-| Analytics show #REF errors | Run "Apply Formulas" after loading completes |
-| Need fresh data | Run "Full Reload" (removes triggers first) or wait for weekly auto-refresh |
+| "API configuration missing" | Fill in `API_BASE_URL` and `BEARER_TOKEN` in Config sheet |
+| Loading stops partway | Run "Load / Resume Assets" again — it resumes from where it left off |
+| Analytics show #REF errors | Run "Regenerate All Default" or the specific category regenerate |
+| Need fresh data now | Run "Refresh Updated Assets" for on-demand update |
+| Need complete reset | Remove triggers first, then run "Full Reload (All Assets)" |
+| "STUDENT_ROLE_ID not configured" | Run "View Available Roles" to find the ID, add it to Config |
 
 ## Project Structure
 
 ```
 scripts/
-  Config.gs          - Configuration, logging, concurrency control
-  ApiClient.gs       - HTTP client with retry/backoff
-  AssetData.gs       - Two-phase asset loader (bulk + custom field enrichment)
-  ReferenceData.gs   - Locations, status types, custom field discovery
-  Setup.gs           - Sheet creation and analytics formulas
-  Menu.gs            - Menu system and UI operations
-  Triggers.gs        - Automated trigger management
-  appsscript.json    - Apps Script manifest
+  Config.gs              - Configuration, logging, concurrency control
+  ApiClient.gs           - HTTP client with retry/backoff
+  AssetData.gs           - Asset loader (bulk + incremental refresh)
+  ReferenceData.gs       - Locations, status types, student enrollment
+  Setup.gs               - Sheet creation, formulas, default analytics sheets (★)
+  OptionalAnalytics.gs   - Optional (non-default) analytics sheet setup
+  Menu.gs                - Menu system, category submenus, UI entry points
+  Triggers.gs            - Automated trigger management
+  appsscript.json        - Apps Script manifest
 ```
 
 ## License

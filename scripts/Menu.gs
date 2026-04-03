@@ -18,27 +18,68 @@ function onOpen() {
     .addSubMenu(ui.createMenu('Load Reference Data')
       .addItem('Refresh Locations', 'menuLoadLocations')
       .addItem('Refresh Status Types', 'menuLoadStatusTypes')
-      .addItem('Discover Custom Fields', 'menuDiscoverCustomFields')
+      .addItem('Refresh Location Enrollment', 'menuLoadLocationEnrollment')
       .addSeparator()
+      .addItem('View Available Roles', 'menuViewRoles')
       .addItem('Refresh All Reference Data', 'menuLoadAllReferenceData')
     )
     .addSubMenu(ui.createMenu('Asset Data')
-      .addItem('Continue Loading', 'menuContinueLoading')
-      .addItem('Enrich Custom Fields', 'menuEnrichAssets')
+      .addItem('Load / Resume Assets', 'menuContinueLoading')
+      .addItem('Refresh Changed Assets', 'menuRefreshAssets')
       .addItem('Apply Formulas', 'menuApplyFormulas')
       .addItem('Show Status', 'menuShowStatus')
+      .addItem('Remove Duplicates', 'menuDeduplicateAssets')
       .addSeparator()
       .addItem('Clear Data + Reset Progress', 'menuClearAndReset')
       .addItem('Full Reload', 'menuFullReload')
     )
     .addSeparator()
     .addSubMenu(ui.createMenu('Analytics Sheets')
-      .addItem('Location Summary', 'menuAddLocationSummary')
-      .addItem('Model Breakdown', 'menuAddModelBreakdown')
-      .addItem('AUE Planning', 'menuAddAUEPlanning')
-      .addItem('Budget Planning', 'menuAddBudgetPlanning')
-      .addItem('Status Overview', 'menuAddStatusOverview')
+      .addSubMenu(ui.createMenu('Fleet Operations')
+        .addItem('\u2605 Assignment Overview', 'menuAddAssignmentOverview')
+        .addItem('\u2605 Status Overview', 'menuAddStatusOverview')
+        .addSeparator()
+        .addItem('Device Readiness', 'menuAddDeviceReadiness')
+        .addItem('Spare Assets', 'menuAddSpareAssets')
+        .addItem('Lost/Stolen Rate', 'menuAddLostStolenRate')
+        .addItem('Model Fragmentation', 'menuAddModelFragmentation')
+        .addItem('Unassigned Inventory', 'menuAddUnassignedInventory')
+        .addSeparator()
+        .addItem('Regenerate Fleet Operations', 'menuRegenerateFleetOperations')
+      )
+      .addSubMenu(ui.createMenu('Service & Reliability')
+        .addItem('\u2605 Service Impact', 'menuAddServiceImpact')
+        .addSeparator()
+        .addItem('Break Rate', 'menuAddBreakRate')
+        .addItem('High Ticket Locations', 'menuAddHighTicketLocations')
+        .addSeparator()
+        .addItem('Regenerate Service & Reliability', 'menuRegenerateServiceReliability')
+      )
+      .addSubMenu(ui.createMenu('Budget & Planning')
+        .addItem('\u2605 Budget Planning', 'menuAddBudgetPlanning')
+        .addItem('\u2605 Aging Analysis', 'menuAddAgingAnalysis')
+        .addSeparator()
+        .addItem('Replacement Planning', 'menuAddReplacementPlanning')
+        .addItem('Replacement Forecast', 'menuAddReplacementForecast')
+        .addItem('Warranty Timeline', 'menuAddWarrantyTimeline')
+        .addItem('Device Lifecycle', 'menuAddDeviceLifecycle')
+        .addSeparator()
+        .addItem('Regenerate Budget & Planning', 'menuRegenerateBudgetPlanning')
+      )
+      .addSubMenu(ui.createMenu('Fleet Composition')
+        .addItem('\u2605 Fleet Summary', 'menuAddFleetSummary')
+        .addItem('\u2605 Location Summary', 'menuAddLocationSummary')
+        .addItem('\u2605 Model Breakdown', 'menuAddModelBreakdown')
+        .addSeparator()
+        .addItem('Location Model Breakdown', 'menuAddLocationModelBreakdown')
+        .addItem('Location Model Filtered', 'menuAddLocationModelFiltered')
+        .addItem('Category Breakdown', 'menuAddCategoryBreakdown')
+        .addItem('Manufacturer Summary', 'menuAddManufacturerSummary')
+        .addSeparator()
+        .addItem('Regenerate Fleet Composition', 'menuRegenerateFleetComposition')
+      )
       .addSeparator()
+      .addItem('Regenerate All Default (\u2605)', 'menuRegenerateAllDefault')
       .addItem('Regenerate All Analytics', 'menuRegenerateAllAnalytics')
     )
     .addToUi();
@@ -49,6 +90,14 @@ function onOpen() {
 // =============================================================================
 
 function menuSetupSpreadsheet() {
+  if (!requireNoTriggers('Setup Spreadsheet')) return;
+  const ui = SpreadsheetApp.getUi();
+  const confirm = ui.alert('Confirm Full Reset',
+    'This will delete ALL sheets and recreate them from scratch.\n\n' +
+    'All data, configuration, and logs will be lost.\n\n' +
+    'Continue?',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
   setupSpreadsheet();
 }
 
@@ -68,7 +117,7 @@ function menuVerifyConfig() {
       const response = makeApiRequest('/v1.0/assets?$p=0&$s=1', 'POST', { Filters: [] });
       const total = response.Paging ? response.Paging.TotalRows : '?';
       ui.alert('Configuration OK',
-        `API connection successful.\nTotal assets available: ${total}\nAUE Field: ${config.aueFieldId || 'Not configured'}`,
+        `API connection successful.\nTotal assets available: ${total}`,
         ui.ButtonSet.OK);
     } catch (e) {
       ui.alert('API Connection Failed', e.message, ui.ButtonSet.OK);
@@ -116,16 +165,41 @@ function menuLoadStatusTypes() {
   } finally { releaseScriptLock(lock); }
 }
 
-function menuDiscoverCustomFields() {
-  const lock = acquireScriptLock();
-  if (!lock) { showOperationBusyMessage('Discover Custom Fields'); return; }
+function menuViewRoles() {
+  const ui = SpreadsheetApp.getUi();
   try {
-    discoverCustomFields();
-    const config = getConfig();
-    const msg = config.aueFieldId
-      ? `Custom fields discovered. AUE field detected: "${config.aueFieldName}"`
-      : 'Custom fields discovered. No AUE field auto-detected.\nSet AUE_CUSTOM_FIELD_ID in Config if you have one.';
-    SpreadsheetApp.getUi().alert(msg);
+    const roles = getSiteRoles();
+    if (!roles || roles.length === 0) {
+      ui.alert('No roles returned from API.');
+      return;
+    }
+    const lines = roles.map(r => {
+      const name = r.Name || 'Unknown';
+      const category = r.CategoryName ? ` [${r.CategoryName}]` : '';
+      return `${name}${category}  —  ${r.RoleId}  (${r.Users || 0} users)`;
+    });
+    ui.alert('Available Roles',
+      'Copy the RoleId for your student role into the STUDENT_ROLE_ID config key.\n\n' +
+      lines.join('\n'),
+      ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('Error', e.message, ui.ButtonSet.OK);
+  }
+}
+
+function menuLoadLocationEnrollment() {
+  const lock = acquireScriptLock();
+  if (!lock) { showOperationBusyMessage('Refresh Location Enrollment'); return; }
+  try {
+    const result = loadLocationEnrollment();
+    const ui = SpreadsheetApp.getUi();
+    if (result === 'already_complete') {
+      ui.alert('Location enrollment is already complete.\nTo reload, clear the LocationEnrollment sheet first.');
+    } else if (result === 'paused') {
+      ui.alert('Loading paused (timeout).\nRun "Refresh Location Enrollment" again to continue.');
+    } else {
+      ui.alert('Location enrollment loaded.');
+    }
   } finally { releaseScriptLock(lock); }
 }
 
@@ -135,7 +209,15 @@ function menuLoadAllReferenceData() {
   try {
     loadLocations();
     loadStatusTypes();
-    discoverCustomFields();
+
+    // Enrollment requires STUDENT_ROLE_ID — skip gracefully if not configured
+    const config = getConfig();
+    if (config.studentRoleId) {
+      loadLocationEnrollment();
+    } else {
+      logOperation('ReferenceData', 'SKIP', 'Skipping enrollment — STUDENT_ROLE_ID not configured');
+    }
+
     SpreadsheetApp.getUi().alert('All reference data loaded.');
   } finally { releaseScriptLock(lock); }
 }
@@ -146,7 +228,7 @@ function menuLoadAllReferenceData() {
 
 function menuContinueLoading() {
   const lock = acquireScriptLock();
-  if (!lock) { showOperationBusyMessage('Continue Loading'); return; }
+  if (!lock) { showOperationBusyMessage('Load / Resume Assets'); return; }
   try {
     const result = loadAssetData(true);
     const status = getLoadingStatus();
@@ -155,28 +237,28 @@ function menuContinueLoading() {
     if (result === 'complete') {
       ui.alert('Loading Complete', `All assets loaded. ${status.rowCount} total rows.`, ui.ButtonSet.OK);
     } else if (result === 'paused') {
-      ui.alert('Loading Paused', `Progress: ${status.phase1}\n${status.rowCount} rows so far.\nRun "Continue Loading" again to resume.`, ui.ButtonSet.OK);
+      ui.alert('Loading Paused', `Progress: ${status.phase1}\n${status.rowCount} rows so far.\nRun "Load / Resume Assets" again to resume.`, ui.ButtonSet.OK);
     } else if (result === 'already_complete') {
       ui.alert('Already Complete', `Asset loading is already complete. ${status.rowCount} rows.\nUse "Full Reload" to start over.`, ui.ButtonSet.OK);
     }
   } finally { releaseScriptLock(lock); }
 }
 
-function menuEnrichAssets() {
+function menuRefreshAssets() {
   const lock = acquireScriptLock();
-  if (!lock) { showOperationBusyMessage('Enrich Custom Fields'); return; }
+  if (!lock) { showOperationBusyMessage('Refresh Changed Assets'); return; }
   try {
-    const result = enrichAssetData(true);
+    const result = refreshAssetData(true);
     const ui = SpreadsheetApp.getUi();
 
-    if (result === 'complete' || result === 'already_complete') {
-      ui.alert('Enrichment complete. AUE dates populated.');
-    } else if (result === 'paused') {
-      ui.alert('Enrichment paused. Run again to continue.');
-    } else if (result === 'no_aue_field') {
-      ui.alert('No AUE custom field configured.\nRun "Discover Custom Fields" first, or set AUE_CUSTOM_FIELD_ID manually.');
-    } else if (result === 'skipped') {
-      ui.alert('Asset loading must complete before enrichment.');
+    if (result === 'initial_load_incomplete') {
+      ui.alert('Initial load must complete before refreshing.\nRun "Load / Resume Assets" first.');
+    } else if (result === 'no_refresh_date') {
+      ui.alert('No previous refresh date found.\nRun "Load / Resume Assets" to complete the initial load, or use "Full Reload".');
+    } else if (result && typeof result === 'object') {
+      ui.alert('Refresh Complete',
+        `Updated: ${result.updated} assets\nNew: ${result.added} assets`,
+        ui.ButtonSet.OK);
     }
   } finally { releaseScriptLock(lock); }
 }
@@ -186,12 +268,26 @@ function menuApplyFormulas() {
   SpreadsheetApp.getUi().alert('Formulas applied to all data rows.');
 }
 
+function menuDeduplicateAssets() {
+  const lock = acquireScriptLock();
+  if (!lock) { showOperationBusyMessage('Remove Duplicates'); return; }
+  try {
+    const removed = deduplicateAssetData();
+    const ui = SpreadsheetApp.getUi();
+    if (removed > 0) {
+      ui.alert('Deduplication Complete', `Removed ${removed} duplicate rows.`, ui.ButtonSet.OK);
+    } else {
+      ui.alert('No Duplicates', 'No duplicate AssetIds found.', ui.ButtonSet.OK);
+    }
+  } finally { releaseScriptLock(lock); }
+}
+
 function menuShowStatus() {
   const status = getLoadingStatus();
   SpreadsheetApp.getUi().alert('Loading Status',
     `Asset rows: ${status.rowCount}\n` +
-    `Phase 1 (Bulk Load): ${status.phase1}\n` +
-    `Phase 2 (Enrichment): ${status.phase2}`,
+    `Initial Load: ${status.phase1}\n` +
+    `Last Refresh: ${status.lastRefresh}`,
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }
@@ -225,14 +321,129 @@ function menuFullReload() {
     if (result === 'complete') {
       ui.alert('Full reload complete. ' + status.rowCount + ' assets loaded.');
     } else {
-      ui.alert('Full reload started. ' + status.rowCount + ' assets so far.\nRun "Continue Loading" to resume.');
+      ui.alert('Full reload started. ' + status.rowCount + ' assets so far.\nRun "Load / Resume Assets" to resume.');
     }
   } finally { releaseScriptLock(lock); }
 }
 
 // =============================================================================
-// ANALYTICS
+// ANALYTICS — FLEET OPERATIONS
 // =============================================================================
+
+function menuAddAssignmentOverview() {
+  setupAssignmentOverviewSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Assignment Overview sheet added.');
+}
+
+function menuAddStatusOverview() {
+  setupStatusOverviewSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Status Overview sheet added.');
+}
+
+function menuAddDeviceReadiness() {
+  setupDeviceReadinessSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Device Readiness sheet added.');
+}
+
+function menuAddSpareAssets() {
+  setupSpareAssetsSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Spare Assets sheet added.');
+}
+
+function menuAddLostStolenRate() {
+  setupLostStolenRateSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Lost/Stolen Rate sheet added.');
+}
+
+function menuAddModelFragmentation() {
+  setupModelFragmentationSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Model Fragmentation sheet added.');
+}
+
+function menuAddUnassignedInventory() {
+  setupUnassignedInventorySheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Unassigned Inventory sheet added.');
+}
+
+function menuRegenerateFleetOperations() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const count = regenerateFleetOperations(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} Fleet Operations sheet(s).`);
+}
+
+// =============================================================================
+// ANALYTICS — SERVICE & RELIABILITY
+// =============================================================================
+
+function menuAddServiceImpact() {
+  setupServiceImpactSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Service Impact sheet added.');
+}
+
+function menuAddBreakRate() {
+  setupBreakRateSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Break Rate sheet added.');
+}
+
+function menuAddHighTicketLocations() {
+  setupHighTicketLocationsSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('High Ticket Locations sheet added.');
+}
+
+function menuRegenerateServiceReliability() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const count = regenerateServiceReliability(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} Service & Reliability sheet(s).`);
+}
+
+// =============================================================================
+// ANALYTICS — BUDGET & PLANNING
+// =============================================================================
+
+function menuAddBudgetPlanning() {
+  setupBudgetPlanningSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Budget Planning sheet added.');
+}
+
+function menuAddAgingAnalysis() {
+  setupAgingAnalysisSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Aging Analysis sheet added.');
+}
+
+function menuAddReplacementPlanning() {
+  setupReplacementPlanningSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Replacement Planning sheet added.');
+}
+
+function menuAddReplacementForecast() {
+  setupReplacementForecastSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Replacement Forecast sheet added.');
+}
+
+function menuAddWarrantyTimeline() {
+  setupWarrantyTimelineSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Warranty Timeline sheet added.');
+}
+
+function menuAddDeviceLifecycle() {
+  setupDeviceLifecycleSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Device Lifecycle sheet added.');
+}
+
+function menuRegenerateBudgetPlanning() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const count = regenerateBudgetPlanning(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} Budget & Planning sheet(s).`);
+}
+
+// =============================================================================
+// ANALYTICS — FLEET COMPOSITION
+// =============================================================================
+
+function menuAddFleetSummary() {
+  setupFleetSummarySheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Fleet Summary sheet added.');
+}
 
 function menuAddLocationSummary() {
   setupLocationSummarySheet(SpreadsheetApp.getActiveSpreadsheet());
@@ -244,27 +455,44 @@ function menuAddModelBreakdown() {
   SpreadsheetApp.getUi().alert('Model Breakdown sheet added.');
 }
 
-function menuAddAUEPlanning() {
-  setupAUEPlanningSheet(SpreadsheetApp.getActiveSpreadsheet());
-  SpreadsheetApp.getUi().alert('AUE Planning sheet added.');
+function menuAddLocationModelBreakdown() {
+  setupLocationModelBreakdownSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Location Model Breakdown sheet added.');
 }
 
-function menuAddBudgetPlanning() {
-  setupBudgetPlanningSheet(SpreadsheetApp.getActiveSpreadsheet());
-  SpreadsheetApp.getUi().alert('Budget Planning sheet added.');
+function menuAddLocationModelFiltered() {
+  setupLocationModelFilteredSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Location Model Filtered sheet added.');
 }
 
-function menuAddStatusOverview() {
-  setupStatusOverviewSheet(SpreadsheetApp.getActiveSpreadsheet());
-  SpreadsheetApp.getUi().alert('Status Overview sheet added.');
+function menuAddCategoryBreakdown() {
+  setupCategoryBreakdownSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Category Breakdown sheet added.');
+}
+
+function menuAddManufacturerSummary() {
+  setupManufacturerSummarySheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Manufacturer Summary sheet added.');
+}
+
+function menuRegenerateFleetComposition() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const count = regenerateFleetComposition(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} Fleet Composition sheet(s).`);
+}
+
+// =============================================================================
+// ANALYTICS — GLOBAL REGENERATION
+// =============================================================================
+
+function menuRegenerateAllDefault() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const count = regenerateAllDefault(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} default (\u2605) analytics sheets.`);
 }
 
 function menuRegenerateAllAnalytics() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  setupLocationSummarySheet(ss);
-  setupModelBreakdownSheet(ss);
-  setupAUEPlanningSheet(ss);
-  setupBudgetPlanningSheet(ss);
-  setupStatusOverviewSheet(ss);
-  SpreadsheetApp.getUi().alert('All analytics sheets regenerated.');
+  const count = regenerateAllAnalytics(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} analytics sheet(s) (default + installed optional).`);
 }

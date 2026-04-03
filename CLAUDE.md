@@ -11,22 +11,23 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 ```
 
 **Data Flow:**
-1. Reference data loads first (locations, status types, custom fields)
-2. Phase 1: Bulk asset search (paginated, fast)
-3. Phase 2: Custom field enrichment (AUE date from custom fields, per-batch)
-4. Formula columns calculate derived metrics (AUE status, age, warranty, replacement cycle)
-5. Analytics sheets auto-calculate via Google Sheets formulas
+1. Reference data loads first (locations, status types)
+2. Bulk asset search (paginated, fast) with checkpoint resume
+3. Formula columns calculate derived metrics (age, warranty status)
+4. Analytics sheets auto-calculate via Google Sheets formulas
+5. Daily incremental refresh keeps data current via ModifiedDate filter
 
 ## Code Structure (scripts/)
 
 | File | Purpose |
 |------|---------|
 | `Config.gs` | Config reader, type helpers, logging, lock management, config caching |
-| `ApiClient.gs` | HTTP client with retry/backoff, asset search, location/status/custom-field endpoints |
-| `AssetData.gs` | Two-phase loader: bulk assets (Phase 1) + custom field enrichment (Phase 2) |
-| `ReferenceData.gs` | Locations, status types, custom field discovery (AUE auto-detection) |
-| `Setup.gs` | Sheet creation, headers, formulas, analytics sheets |
-| `Menu.gs` | "iiQ Assets" menu, UI entry points |
+| `ApiClient.gs` | HTTP client with retry/backoff, asset search, location/status endpoints |
+| `AssetData.gs` | Bulk asset loader with checkpoint resume + incremental refresh |
+| `ReferenceData.gs` | Locations and status types |
+| `Setup.gs` | Sheet creation, headers, formulas, default analytics sheets (★) |
+| `OptionalAnalytics.gs` | Optional (non-default) analytics sheet setup functions |
+| `Menu.gs` | "iiQ Assets" menu, UI entry points, category submenus |
 | `Triggers.gs` | Time-driven functions, trigger management |
 
 **Key Dependencies:**
@@ -40,23 +41,109 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | Sheet | Type | Purpose |
 |-------|------|---------|
 | Instructions | Static | Setup and usage guide |
-| Config | Manual | API settings, progress tracking, AUE field config |
-| AssetData | Data | Main asset data (25 columns: 20 API + 5 formula) |
+| Config | Manual | API settings, progress tracking |
+| AssetData | Data | Main asset data (28 columns: 25 API + 3 formula) |
 | Locations | Reference | Location directory |
 | StatusTypes | Reference | Asset status type directory |
-| CustomFields | Reference | Discovered custom fields for assets |
 | Logs | Data | Operation logs |
 
-### Analytics Sheets (Default)
+### Analytics Sheets (★ = default, created by Setup Spreadsheet)
+
+**Fleet Operations**
 | Sheet | Question Answered |
 |-------|-------------------|
-| LocationSummary | "How many assets per school? How old? AUE status?" |
-| ModelBreakdown | "Which device models do we have? How many active vs retired?" |
-| AUEPlanning | "When do devices need replacing, by fiscal year?" |
-| BudgetPlanning | "What's the replacement cost per location?" |
-| StatusOverview | "What's the breakdown of active/retired/storage?" |
+| ★ AssignmentOverview | "How many devices are assigned vs idle per location?" |
+| ★ StatusOverview | "What's the breakdown of active/retired/storage?" |
+| DeviceReadiness | "What's actually deployable at each school right now?" |
+| SpareAssets | "Do I have enough working spares at each school?" |
+| LostStolenRate | "Which schools are losing devices?" |
+| ModelFragmentation | "Which schools are a patchwork of device models?" |
+| UnassignedInventory | "Where is idle inventory sitting?" |
 
-## AssetData Column Layout (25 columns)
+**Service & Reliability**
+| Sheet | Question Answered |
+|-------|-------------------|
+| ★ ServiceImpact | "Which models generate the most support tickets? What's unreliable?" |
+| BreakRate | "Which individual devices and models have the most tickets?" |
+| HighTicketLocations | "Which schools have the most device problems?" |
+
+**Budget & Planning**
+| Sheet | Question Answered |
+|-------|-------------------|
+| ★ BudgetPlanning | "What's the replacement cost per location based on warranty/age?" |
+| ★ AgingAnalysis | "What's our fleet age distribution? When is the replacement cliff?" |
+| ReplacementPlanning | "What do I need to buy before next school year?" |
+| ReplacementForecast | "How many devices need replacing in 1/2/3 years?" |
+| WarrantyTimeline | "When does warranty expire by cohort?" |
+| DeviceLifecycle | "How long do devices actually last by model?" |
+
+**Fleet Composition**
+| Sheet | Question Answered |
+|-------|-------------------|
+| ★ FleetSummary | "What are our top-line KPIs? Total assets, value, age, warranty, tickets, assignment?" |
+| ★ LocationSummary | "How many assets per school? How old? Warranty status?" |
+| ★ ModelBreakdown | "Which device models do we have? How many active vs retired?" |
+| LocationModelBreakdown | "What models are at each school? (cross-tab)" |
+| LocationModelFiltered | "Show me one school's model mix (dropdown-driven)" |
+| CategoryBreakdown | "What types of devices do we have? Chromebooks vs laptops vs tablets?" |
+| ManufacturerSummary | "Which vendors are we invested in?" |
+
+## Menu Structure
+
+```
+iiQ Assets
+├── Setup
+│   ├── Setup Spreadsheet
+│   ├── Verify Configuration
+│   └── Setup Automated Triggers
+├── Asset Data
+│   ├── Load / Resume Assets
+│   ├── Refresh Updated Assets
+│   └── Full Reload (All Assets)
+├── Analytics Sheets
+│   ├── Fleet Operations
+│   │   ├── ★ AssignmentOverview
+│   │   ├── ★ StatusOverview
+│   │   ├── DeviceReadiness
+│   │   ├── SpareAssets
+│   │   ├── LostStolenRate
+│   │   ├── ModelFragmentation
+│   │   ├── UnassignedInventory
+│   │   └── Regenerate Fleet Operations
+│   ├── Service & Reliability
+│   │   ├── ★ ServiceImpact
+│   │   ├── BreakRate
+│   │   ├── HighTicketLocations
+│   │   └── Regenerate Service & Reliability
+│   ├── Budget & Planning
+│   │   ├── ★ BudgetPlanning
+│   │   ├── ★ AgingAnalysis
+│   │   ├── ReplacementPlanning
+│   │   ├── ReplacementForecast
+│   │   ├── WarrantyTimeline
+│   │   ├── DeviceLifecycle
+│   │   └── Regenerate Budget & Planning
+│   ├── Fleet Composition
+│   │   ├── ★ FleetSummary
+│   │   ├── ★ LocationSummary
+│   │   ├── ★ ModelBreakdown
+│   │   ├── LocationModelBreakdown
+│   │   ├── LocationModelFiltered
+│   │   ├── CategoryBreakdown
+│   │   ├── ManufacturerSummary
+│   │   └── Regenerate Fleet Composition
+│   ├── Regenerate All Default (★)
+│   └── Regenerate All Analytics
+└── Reference Data
+    ├── Reload Locations
+    └── Reload Status Types
+```
+
+**★ = default sheets** created by Setup Spreadsheet. Non-starred sheets are optional.
+
+**Regeneration:** Analytics setup functions use `getOrCreateSheet` -- on regeneration, only the formula is refreshed (no delete/create/reformat). Formulas are live and auto-recalculate when AssetData changes; regeneration is only needed after code updates.
+
+## AssetData Column Layout (28 columns)
 
 | Col | Header | Source |
 |-----|--------|--------|
@@ -78,13 +165,16 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | P | PurchasePrice | API |
 | Q | CreatedDate | API |
 | R | ModifiedDate | API |
-| S | OpenTickets | API (OpenTicketCount) |
-| T | AUEDate | Phase 2 (custom field) |
-| U | AUEStatus | Formula: Expired / < 6 Months / < 1 Year / < 2 Years / OK |
-| V | AgeDays | Formula: TODAY() - PurchasedDate |
-| W | AgeYears | Formula: AgeDays / 365.25 |
-| X | WarrantyStatus | Formula: Active / Expiring / Expired / None |
-| Y | ReplacementCycle | Formula: Fiscal year when AUE expires (e.g., "2025-2026") |
+| S | OwnerRoleName | API (Owner.RoleName) |
+| T | OwnerGrade | API (Owner.Grade) |
+| U | OwnerLocationId | API (Owner.LocationId) |
+| V | StorageLocationName | API |
+| W | StorageUnitNumber | API |
+| X | DeployedDate | API |
+| Y | OpenTickets | API (OpenTicketCount) |
+| Z | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
+| AA | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
+| AB | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
 
 ### Analytics Formula Column Reference
 
@@ -94,18 +184,19 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | Model | **E (ModelName)** |
 | Manufacturer | **F (ManufacturerName)** |
 | Status | **M (StatusName)** |
-| AUE Status | **U (AUEStatus)** |
-| Replacement Cycle | **Y (ReplacementCycle)** |
+| Warranty Status | **AB (WarrantyStatus)** |
+| Age (Years) | **AA (AgeYears)** |
+| Open Tickets | **Y (OpenTickets)** |
 
 ## API Endpoints Used
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/v1.0/assets?$p={page}&$s={size}` | POST | Bulk asset search with filters |
+| `/v1.0/assets?$p={page}&$s={size}` | POST | Bulk asset search with filters (deleted assets excluded by default) |
 | `/v2.0/locations/all?$s=1000` | GET | Location directory |
 | `/v1.0/assets/status/types?$s=100` | GET | Asset status types |
-| `/v1.0/custom-fields/for/asset` | POST | Discover custom field definitions |
-| `/v1.0/custom-fields/values/for/assets` | POST | Batch custom field values |
+| `/v1.0/sites/roles` | GET | Site roles (for STUDENT_ROLE_ID) |
+| `/v1.0/users?$s=1` | POST | User count by filters (enrollment) |
 
 ## Config Sheet Keys
 
@@ -118,29 +209,27 @@ Optional:
 - `PAGE_SIZE`: Records per API call (default 100)
 - `THROTTLE_MS`: Delay between requests (default 1000)
 - `ASSET_BATCH_SIZE`: Assets per page for bulk load (default 500)
-
-Custom Field Config (auto-detected or manual):
-- `AUE_CUSTOM_FIELD_ID`: UUID of the AUE date custom field
-- `AUE_CUSTOM_FIELD_NAME`: Display name of the AUE field
+- `REPLACEMENT_AGE_YEARS`: Device age threshold for replacement planning (default 4)
+- `NEXT_SCHOOL_YEAR_START`: Target date for replacement planning (default 2026-07-01, format YYYY-MM-DD)
 
 Progress Tracking (auto-managed):
-- `ASSET_LAST_PAGE`, `ASSET_TOTAL_PAGES`, `ASSET_COMPLETE`: Phase 1 progress
-- `ENRICH_LAST_IDX`, `ENRICH_COMPLETE`: Phase 2 progress
+- `ASSET_LAST_PAGE`, `ASSET_TOTAL_PAGES`, `ASSET_COMPLETE`: Load progress
+- `LAST_REFRESH_DATE`: ISO timestamp of last incremental refresh
 
-## Two-Phase Loading
+## Data Loading
 
-**Phase 1 — Bulk Asset Search:**
+**Initial Load — Bulk Asset Search:**
 - POST `/v1.0/assets` with empty filters, paginated
 - 5.5-minute timeout with page-level checkpoints
 - `triggerDataContinue` resumes across invocations
 
-**Phase 2 — Custom Field Enrichment (AUE):**
-- Reads asset IDs from column A, batches of 50
-- POST `/v1.0/custom-fields/values/for/assets` per batch
-- Writes AUE date to column T
-- Only runs if `AUE_CUSTOM_FIELD_ID` is configured
+**Incremental Refresh — ModifiedDate Filter:**
+- POST `/v1.0/assets` with `modifieddate` facet filter (`date>=YYYY-MM-DD`)
+- Finds existing rows by AssetId and updates in-place
+- Appends new assets not previously seen
+- Runs daily at 3 AM via trigger, also available on-demand from menu
 
-**After both phases:** `applyAssetFormulas()` adds calculated columns U-Y.
+**After loading:** `applyAssetFormulas()` adds ARRAYFORMULA calculated columns Z-AB.
 
 ## Initial Setup
 
@@ -150,16 +239,13 @@ Progress Tracking (auto-managed):
 4. **iiQ Assets > Setup > Setup Spreadsheet**
 5. Fill in Config sheet (API_BASE_URL, BEARER_TOKEN)
 6. **iiQ Assets > Setup > Verify Configuration**
-7. **iiQ Assets > Load Reference Data > Refresh All Reference Data**
-8. Check CustomFields sheet — verify AUE field detected (or set manually)
-9. **iiQ Assets > Asset Data > Continue Loading** (repeat until complete)
-10. **iiQ Assets > Asset Data > Enrich Custom Fields**
-11. **iiQ Assets > Asset Data > Apply Formulas**
-12. **iiQ Assets > Setup > Setup Automated Triggers**
+7. **iiQ Assets > Asset Data > Load / Resume Assets** (auto-loads reference data, then starts assets)
+8. **iiQ Assets > Setup > Setup Automated Triggers** (automation finishes loading + applies formulas)
 
 ## Trigger Schedule
 
 | Function | Schedule | Purpose |
 |----------|----------|---------|
-| `triggerDataContinue` | Every 10 min | Resume interrupted loads (Phase 1 or 2) |
+| `triggerDataContinue` | Every 10 min | Resume interrupted initial load |
+| `triggerDailyRefresh` | Daily 3 AM | Incremental refresh (ModifiedDate filter) |
 | `triggerWeeklyFullRefresh` | Sunday 2 AM | Full reload + reference data refresh |
