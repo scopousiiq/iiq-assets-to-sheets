@@ -2,81 +2,55 @@
 
 Google Apps Script project that extracts Incident IQ (iiQ) asset data into Google Sheets for device reporting, replacement cycle planning, and dashboard consumption. Designed for school district IT teams.
 
-## What You Get
-
-**Data loaded automatically from your iiQ instance:**
-- Complete asset inventory (28 columns) — identity, device model, location, owner, status, purchase info, storage, tickets, and more
-- Location directory and asset status types
-- Student enrollment and device coverage per school (optional)
-
-**23 analytics sheets organized by category (formula-driven, auto-updating):**
-
-Sheets marked with a star (★) are created automatically by Setup Spreadsheet. Optional sheets can be installed individually from the **iiQ Assets > Analytics Sheets** menu.
-
-### Fleet Operations
-
-| Sheet | What It Answers |
-|-------|-----------------|
-| ★ AssignmentOverview | How many devices are assigned vs idle per location? |
-| ★ StatusOverview | What's the breakdown of active/retired/in-storage? |
-| DeviceReadiness | What's actually deployable at each school right now? |
-| SpareAssets | Do I have enough working spares at each school? |
-| LostStolenRate | Which schools are losing devices? |
-| ModelFragmentation | Which schools are a patchwork of device models? |
-| UnassignedInventory | Where is idle inventory sitting? |
-
-### Service & Reliability
-
-| Sheet | What It Answers |
-|-------|-----------------|
-| ★ ServiceImpact | Which models generate the most support tickets? |
-| BreakRate | Which individual devices and models have the most tickets? |
-| HighTicketLocations | Which schools have the most device problems? |
-
-### Budget & Planning
-
-| Sheet | What It Answers |
-|-------|-----------------|
-| ★ BudgetPlanning | What's the replacement cost per location based on warranty/age? |
-| ★ AgingAnalysis | What's our fleet age distribution? When is the replacement cliff? |
-| ReplacementPlanning | What do I need to buy before next school year? |
-| ReplacementForecast | What does future replacement volume and cost look like by year? |
-| WarrantyTimeline | When does warranty expire by cohort? |
-| DeviceLifecycle | How long do devices actually last by model? |
-
-### Fleet Composition
-
-| Sheet | What It Answers |
-|-------|-----------------|
-| ★ FleetSummary | Top-line KPIs: total assets, value, age, warranty, tickets, assignment |
-| ★ LocationSummary | How many assets per school? How old? Warranty status? |
-| ★ ModelBreakdown | Which device models do we have? How many active vs retired? |
-| LocationModelBreakdown | What models are at each school? (location/model breakdown) |
-| LocationModelFiltered | Show me one school's model mix (dropdown-driven) |
-| CategoryBreakdown | What types of devices? Chromebooks vs laptops vs tablets? |
-| ManufacturerSummary | Which vendors are we invested in? |
-
-**Calculated columns on every asset (ARRAYFORMULA — instant even at 300K+ rows):**
-- Device age in days and years (falls back to CreatedDate if PurchasedDate is empty)
-- Warranty status: Active / Expiring (< 90 days) / Expired / None
-
 ## Quick Start
+
+### 1. Create and Set Up Your Spreadsheet
+
+**Option A: Copy the Template (Fastest)**
+
+[**Make a copy of the Google Sheets template**](https://docs.google.com/spreadsheets/d/1ZDHUsL0Hqowe9xqS42fGHLtP2e0WYV6pM1EF_Tj9gXM/edit?usp=sharing)
+
+This template includes all sheets, formulas, and scripts pre-configured. Skip to step 2.
+
+**Option B: Build from Scratch**
 
 1. Create a new Google Spreadsheet
 2. Go to **Extensions > Apps Script**
 3. Copy all `.gs` files from the `scripts/` directory
 4. Save and refresh the spreadsheet
 5. Run **iiQ Assets > Setup > Setup Spreadsheet**
-6. Fill in the **Config** sheet:
-   - `API_BASE_URL`: Your iiQ instance URL (e.g., `https://yourdistrict.incidentiq.com`)
-   - `BEARER_TOKEN`: Your API token (Admin > Integrations > API)
-   - `SITE_ID`: Optional — only needed for multi-site instances
-7. Run **iiQ Assets > Setup > Verify Configuration**
-8. Run **iiQ Assets > Asset Data > Load / Resume Assets**
+
+### 2. Configure API Access
+
+In the **Config** sheet, enter your Incident IQ credentials:
+
+| Setting | Value | Where to Find It |
+|---------|-------|------------------|
+| `API_BASE_URL` | `https://yourdistrict.incidentiq.com` | Your iiQ URL (the `/api` is added automatically) |
+| `BEARER_TOKEN` | Your API token | iiQ Admin > Integrations > API |
+| `SITE_ID` | Your site UUID (optional) | Only needed for multi-site districts |
+
+Then run **iiQ Assets > Setup > Verify Configuration** to confirm everything connects.
+
+### 3. Load Your Data
+
+1. Run **iiQ Assets > Asset Data > Load / Resume Assets**
    - Reference data (locations, status types) loads automatically on first run
    - Script runs ~5.5 minutes per batch, then pauses (Apps Script time limit)
-9. Run **iiQ Assets > Setup > Setup Automated Triggers**
-   - Automation finishes loading, applies formulas, and keeps data current going forward
+
+> **Tip for large districts:** Instead of manually running "Load / Resume" repeatedly, set up triggers in step 4 and let automation finish the load.
+
+### 4. Set Up Automated Refresh (Recommended)
+
+Run **iiQ Assets > Setup > Setup Automated Triggers** to create all triggers automatically.
+
+| Trigger | Schedule | What It Does |
+|---------|----------|--------------|
+| `triggerDataContinue` | Every 10 min | Continues any in-progress loading (no-op once complete) |
+| `triggerDailyRefresh` | Daily 3 AM | Incremental refresh — only fetches changed assets |
+| `triggerWeeklyFullRefresh` | Sunday 2 AM | Full reload including reference data |
+
+> **About `triggerDataContinue`:** This is your "keep things moving" trigger. It automatically continues initial data loading, and once complete, applies formulas. You can leave it enabled permanently — when everything is loaded, it does nothing.
 
 ### Replacement Planning Config (Optional)
 
@@ -84,6 +58,43 @@ Two Config keys control the ReplacementPlanning and ReplacementForecast sheets:
 
 - `REPLACEMENT_AGE_YEARS` — devices older than this are flagged for replacement (default: 4)
 - `NEXT_SCHOOL_YEAR_START` — target date for planning (default: 2026-07-01, format YYYY-MM-DD)
+
+## What You Get
+
+**Data loaded automatically from your iiQ instance:**
+- Complete asset inventory (28 columns) — identity, device model, location, owner, status, purchase info, storage, tickets, and more
+- Location directory and asset status types
+- Student enrollment and device coverage per school (optional)
+
+**Calculated columns on every asset (ARRAYFORMULA — instant even at 300K+ rows):**
+- Device age in days and years (falls back to CreatedDate if PurchasedDate is empty)
+- Warranty status: Active / Expiring (< 90 days) / Expired / None
+
+### Default Analytics (created by Setup)
+
+| Sheet | What It Answers |
+|-------|-----------------|
+| ★ FleetSummary | Top-line KPIs: total assets, value, age, warranty, tickets, assignment |
+| ★ LocationSummary | How many assets per school? How old? Warranty status? |
+| ★ ModelBreakdown | Which device models do we have? How many active vs retired? |
+| ★ AgingAnalysis | What's our fleet age distribution? When is the replacement cliff? |
+| ★ BudgetPlanning | What's the replacement cost per location based on warranty/age? |
+| ★ ServiceImpact | Which models generate the most support tickets? |
+| ★ AssignmentOverview | How many devices are assigned vs idle per location? |
+| ★ StatusOverview | What's the breakdown of active/retired/in-storage? |
+
+### Additional Analytics (add via menu)
+
+Use **iiQ Assets > Analytics Sheets** to add any of these 15 optional sheets:
+
+| Category | Available Sheets |
+|----------|------------------|
+| Fleet Operations | Device Readiness, Spare Assets, Lost/Stolen Rate, Model Fragmentation, Unassigned Inventory |
+| Service & Reliability | Break Rate, High Ticket Locations |
+| Budget & Planning | Replacement Planning, Replacement Forecast, Warranty Timeline, Device Lifecycle |
+| Fleet Composition | Location Model Breakdown, Location Model Filtered, Category Breakdown, Manufacturer Summary |
+
+> **Flexible & Customizable:** Districts can delete any analytics sheet and recreate it later via the menu. Default sheets (marked with ★) can also be recreated if accidentally deleted.
 
 ## Menu Structure
 
@@ -202,21 +213,11 @@ Data is refreshed daily at 3 AM. The weekly full refresh starts Sunday at 2 AM a
 | Need complete reset | Remove automated triggers first, then run "Full Reload" |
 | "STUDENT_ROLE_ID not configured" | Run "View Available Roles" to find the ID, add it to Config |
 
-## Project Structure
+## Documentation
 
-```
-scripts/
-  Config.gs              - Configuration, logging, concurrency control
-  ApiClient.gs           - HTTP client with retry/backoff
-  AssetData.gs           - Asset loader (bulk + incremental refresh)
-  ReferenceData.gs       - Locations, status types, student enrollment
-  Setup.gs               - Sheet creation, formulas, default analytics sheets (★)
-  OptionalAnalytics.gs   - Optional (non-default) analytics sheet setup
-  Menu.gs                - Menu system, category submenus, UI entry points
-  Triggers.gs            - Automated trigger management
-  appsscript.json        - Apps Script manifest
-```
+- [**Implementation Guide**](GUIDE.md) — Detailed setup, data loading, formulas, and how everything works
+- [**CLAUDE.md**](CLAUDE.md) — Technical reference for developers
 
 ## License
 
-Open source — use as a base for your district's asset reporting needs.
+MIT — Free to use and modify for your district.
