@@ -75,7 +75,7 @@ function setupConfigSheet(ss) {
   sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]).setFontWeight('bold');
 
   const configRows = [
-    ['API_BASE_URL', ''],
+    ['API_BASE_URL', 'https://YOUR-DISTRICT.incidentiq.com'],
     ['BEARER_TOKEN', ''],
     ['SITE_ID', ''],
     ['PAGE_SIZE', '100'],

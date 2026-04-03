@@ -106,7 +106,7 @@ function menuVerifyConfig() {
   const ui = SpreadsheetApp.getUi();
   const issues = [];
 
-  if (!config.baseUrl) issues.push('API_BASE_URL is empty');
+  if (!config.baseUrl || config.baseUrl.includes('YOUR-DISTRICT')) issues.push('API_BASE_URL not configured — replace the placeholder with your iiQ instance URL');
   if (!config.bearerToken) issues.push('BEARER_TOKEN is empty');
 
   if (issues.length > 0) {

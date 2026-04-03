@@ -19,8 +19,8 @@ function makeApiRequest(endpoint, method, payload, retryCount) {
   const config = getConfig();
   retryCount = retryCount || 0;
 
-  if (!config.baseUrl || !config.bearerToken) {
-    throw new Error('API configuration missing. Check Config sheet.');
+  if (!config.baseUrl || config.baseUrl.includes('YOUR-DISTRICT') || !config.bearerToken) {
+    throw new Error('API configuration missing. Check Config sheet — replace placeholder values with your iiQ instance URL and token.');
   }
 
   const url = config.baseUrl + endpoint;
