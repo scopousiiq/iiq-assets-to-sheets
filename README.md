@@ -85,7 +85,7 @@ Two Config keys control the ReplacementPlanning and ReplacementForecast sheets:
 
 ### Additional Analytics (add via menu)
 
-Use **iiQ Assets > Analytics Sheets** to add any of these 15 optional sheets:
+Use **iiQ Assets > Analytics Sheets** to add any of these 16 optional sheets:
 
 | Category | Available Sheets |
 |----------|------------------|
@@ -93,6 +93,7 @@ Use **iiQ Assets > Analytics Sheets** to add any of these 15 optional sheets:
 | Service & Reliability | Break Rate, High Ticket Locations |
 | Budget & Planning | Replacement Planning, Replacement Forecast, Warranty Timeline, Device Lifecycle |
 | Fleet Composition | Location Model Breakdown, Location Model Filtered, Category Breakdown, Manufacturer Summary |
+| People | Individual Lookup (dropdown-driven asset assignment history per user — calls the user activities API live on selection; works for districts that assign devices directly without formal checkouts) |
 
 > **Flexible & Customizable:** Districts can delete any analytics sheet and recreate it later via the menu. Default sheets (marked with ★) can also be recreated if accidentally deleted.
 
@@ -152,6 +153,9 @@ iiQ Assets
 │   │   ├── Category Breakdown
 │   │   ├── Manufacturer Summary
 │   │   └── Regenerate Fleet Composition
+│   ├── People
+│   │   ├── Individual Lookup
+│   │   └── Regenerate People
 │   ├── Regenerate All Default (★)
 │   └── Regenerate All Analytics
 ```

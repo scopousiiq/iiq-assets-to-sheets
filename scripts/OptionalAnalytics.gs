@@ -506,6 +506,241 @@ function setupLocationModelFilteredSheet(ss) {
 }
 
 // =============================================================================
+// INDIVIDUAL LOOKUP
+// "Show me device checkout history for one person"
+// Interactive dropdown-driven view — select a user, onEdit fetches history live.
+// =============================================================================
+
+const INDIVIDUAL_LOOKUP_SHEET = 'IndividualLookup';
+const INDIVIDUAL_LOOKUP_HANDLER = 'onEditIndividualLookup';
+const INDIVIDUAL_LOOKUP_HEADERS = [
+  'Date', 'Action', 'Asset Tag', 'Serial Number', 'Model',
+  'Location', 'Currently With'
+];
+const INDIVIDUAL_LOOKUP_DATA_COLS = INDIVIDUAL_LOOKUP_HEADERS.length;
+
+function setupIndividualLookupSheet(ss) {
+  let sheet = ss.getSheetByName(INDIVIDUAL_LOOKUP_SHEET);
+  const isNew = !sheet;
+
+  if (sheet) {
+    if (sheet.getLastRow() > 2) {
+      sheet.getRange(3, 1, sheet.getLastRow() - 2, INDIVIDUAL_LOOKUP_DATA_COLS).clearContent();
+    }
+    sheet.getRange(1, 4).clearContent();
+  } else {
+    sheet = ss.insertSheet(INDIVIDUAL_LOOKUP_SHEET);
+    sheet.getRange(1, 1).setValue('Select User:').setFontWeight('bold');
+    sheet.getRange(1, 3).setValue('Status:').setFontWeight('bold');
+    sheet.getRange(2, 1, 1, INDIVIDUAL_LOOKUP_DATA_COLS)
+      .setValues([INDIVIDUAL_LOOKUP_HEADERS]).setFontWeight('bold');
+    sheet.setFrozenRows(2);
+    // Column widths serve double-duty: row 1 labels/dropdown AND row 3+ data.
+    sheet.setColumnWidth(1, 170); // Date (row 3+) / "Select User:" (row 1)
+    sheet.setColumnWidth(2, 220); // Action / dropdown
+    sheet.setColumnWidth(3, 110); // Asset Tag / "Status:"
+    sheet.setColumnWidth(4, 200); // Serial Number / status text
+    sheet.setColumnWidth(5, 260); // Model
+    sheet.setColumnWidth(6, 220); // Location
+    sheet.setColumnWidth(7, 180); // Currently With
+    sheet.setTabColor('#f1663c');
+  }
+
+  // Column Z: sorted unique owner names, sourced from AssetData.
+  // Used as the dropdown source. Hidden for a clean UI.
+  sheet.getRange(1, 26).setFormula(
+    '=IFERROR(SORT(UNIQUE(FILTER(AssetData!L2:L, AssetData!L2:L<>""))), "")'
+  );
+  sheet.hideColumns(26);
+
+  // Data validation uses the spilled unique-names range.
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInRange(sheet.getRange('Z1:Z'), true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(1, 2).setDataValidation(rule);
+
+  // Placeholder message before a selection is made.
+  if (isNew || !sheet.getRange(1, 2).getValue()) {
+    sheet.getRange(3, 1).setValue('← Select a user in B1 to load their asset assignment history.');
+  }
+
+  installIndividualLookupTrigger(ss);
+}
+
+/**
+ * Installable onEdit handler. Fires on every edit in the spreadsheet — must
+ * guard tightly by sheet + cell before doing any work.
+ */
+function onEditIndividualLookup(e) {
+  if (!e || !e.range) return;
+  const range = e.range;
+  if (range.getSheet().getName() !== INDIVIDUAL_LOOKUP_SHEET) return;
+  if (range.getRow() !== 1 || range.getColumn() !== 2) return;
+
+  const ss = range.getSheet().getParent();
+  const sheet = range.getSheet();
+  const selectedName = (e.value || range.getValue() || '').toString().trim();
+
+  sheet.getRange(1, 4).setValue('Loading…');
+  if (sheet.getLastRow() > 2) {
+    sheet.getRange(3, 1, sheet.getLastRow() - 2, INDIVIDUAL_LOOKUP_DATA_COLS).clearContent();
+  }
+
+  if (!selectedName) {
+    sheet.getRange(1, 4).clearContent();
+    sheet.getRange(3, 1).setValue('← Select a user in B1 to load their assignment history.');
+    return;
+  }
+
+  try {
+    const ownerId = resolveOwnerIdByName(ss, selectedName);
+    if (!ownerId) {
+      sheet.getRange(1, 4).setValue('No OwnerId for that name in AssetData.');
+      sheet.getRange(3, 1).setValue('That user could not be resolved. They may no longer own any asset.');
+      return;
+    }
+
+    const response = getUserActivities(ownerId);
+    const items = (response && response.Items) || [];
+
+    // Build lookup maps once so parseActivityRow doesn't re-scan sheets.
+    const assetMap = buildAssetTagMap(ss);
+    const locationMap = buildLocationMap(ss);
+
+    const rows = items
+      .map(item => parseActivityRow(item, assetMap, locationMap))
+      .filter(row => row !== null);
+
+    if (rows.length === 0) {
+      sheet.getRange(1, 4).setValue('No asset assignment history found.');
+      sheet.getRange(3, 1).setValue('No asset assignment events returned for ' + selectedName + '.');
+      return;
+    }
+
+    rows.sort((a, b) => (b[0] > a[0] ? 1 : b[0] < a[0] ? -1 : 0));
+    sheet.getRange(3, 1, rows.length, INDIVIDUAL_LOOKUP_DATA_COLS).setValues(rows);
+
+    const scanned = items.length;
+    const suffix = scanned >= 500 ? ' (scanned 500 most-recent activities)' : '';
+    sheet.getRange(1, 4).setValue(`${rows.length} asset event${rows.length === 1 ? '' : 's'}${suffix} — ${new Date().toLocaleString()}`);
+  } catch (err) {
+    sheet.getRange(1, 4).setValue('Error: ' + (err.message || err));
+    sheet.getRange(3, 1).setValue('Failed to fetch assignment history. See Logs sheet for details.');
+    try { logOperation('IndividualLookup', 'ERROR', (err.message || err).toString().substring(0, 200)); } catch (_) {}
+  }
+}
+
+function resolveOwnerIdByName(ss, name) {
+  const assetData = ss.getSheetByName('AssetData');
+  if (!assetData || assetData.getLastRow() < 2) return null;
+  // Columns K=OwnerId (11), L=OwnerName (12). Read both as a single range for speed.
+  const values = assetData.getRange(2, 11, assetData.getLastRow() - 1, 2).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][1] === name && values[i][0]) return values[i][0];
+  }
+  return null;
+}
+
+function buildAssetTagMap(ss) {
+  const assetData = ss.getSheetByName('AssetData');
+  const map = {};
+  if (!assetData || assetData.getLastRow() < 2) return map;
+  // Columns A-L: AssetId, AssetTag, Name, SerialNumber, ModelName,
+  // ManufacturerName, CategoryName, LocationId, LocationName, LocationType,
+  // OwnerId, OwnerName.
+  const rows = assetData.getRange(2, 1, assetData.getLastRow() - 1, 12).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    const tag = rows[i][1];
+    if (tag && !map[tag]) {
+      map[tag] = {
+        serial: rows[i][3],
+        model: rows[i][4],
+        location: rows[i][8],
+        currentOwner: rows[i][11]
+      };
+    }
+  }
+  return map;
+}
+
+function buildLocationMap(ss) {
+  const locSheet = ss.getSheetByName('Locations');
+  const map = {};
+  if (!locSheet || locSheet.getLastRow() < 2) return map;
+  // Columns A=LocationId, B=Name.
+  const rows = locSheet.getRange(2, 1, locSheet.getLastRow() - 1, 2).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0]) map[rows[i][0]] = rows[i][1];
+  }
+  return map;
+}
+
+/**
+ * Parse one UserActivity item. Returns a sheet row array, or null if the item
+ * isn't an asset event. `Details` is a JSON-encoded string of entries shaped
+ * like {p, o, c} — the "p" field identifies what changed (e.g. "Asset #TAG"
+ * or "OwnerId" or "LocationId"), "o" is old value, "c" is new value.
+ */
+function parseActivityRow(item, assetMap, locationMap) {
+  if (!item || !item.Details || item.Details.indexOf('Asset #') === -1) return null;
+
+  let details;
+  try { details = JSON.parse(item.Details); } catch (_) { return null; }
+  if (!Array.isArray(details)) return null;
+
+  const assetEntry = details.find(d => d && typeof d.p === 'string' && d.p.indexOf('Asset #') === 0);
+  if (!assetEntry) return null;
+  const tag = assetEntry.p.replace('Asset #', '').trim();
+
+  const ownerEntry = details.find(d => d && d.p === 'OwnerId');
+  let action = 'Updated';
+  if (ownerEntry) {
+    action = (ownerEntry.c === null || ownerEntry.c === '' || ownerEntry.c === undefined)
+      ? 'Unassigned'
+      : 'Assigned';
+  }
+
+  const locationEntry = details.find(d => d && d.p === 'LocationId');
+  const historicalLocation = locationEntry && locationEntry.c ? locationMap[locationEntry.c] : '';
+
+  const assetInfo = assetMap[tag] || {};
+  const currentlyWith = assetInfo.currentOwner || '(Unassigned)';
+
+  return [
+    item.ActivityDate || '',
+    action,
+    tag,
+    assetInfo.serial || '',
+    assetInfo.model || '',
+    historicalLocation || assetInfo.location || '',
+    currentlyWith
+  ];
+}
+
+function installIndividualLookupTrigger(ss) {
+  const existing = ScriptApp.getProjectTriggers()
+    .some(t => t.getHandlerFunction() === INDIVIDUAL_LOOKUP_HANDLER);
+  if (existing) return;
+  ScriptApp.newTrigger(INDIVIDUAL_LOOKUP_HANDLER)
+    .forSpreadsheet(ss)
+    .onEdit()
+    .create();
+  try { logOperation('IndividualLookup', 'SETUP', 'Installed onEdit trigger'); } catch (_) {}
+}
+
+function removeIndividualLookupTrigger() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === INDIVIDUAL_LOOKUP_HANDLER) {
+      ScriptApp.deleteTrigger(t);
+      removed++;
+    }
+  });
+  return removed;
+}
+
+// =============================================================================
 // CATEGORY REGENERATION FUNCTIONS
 // Per-category regeneration: defaults always rebuild, optionals only if installed.
 // =============================================================================
@@ -565,6 +800,14 @@ function regenerateFleetComposition(ss) {
   return count;
 }
 
+function regeneratePeople(ss) {
+  // Optional only — no People defaults yet.
+  let count = 0;
+  [['IndividualLookup', setupIndividualLookupSheet],
+  ].forEach(([name, fn]) => { if (ss.getSheetByName(name)) { fn(ss); count++; } });
+  return count;
+}
+
 function regenerateAllDefault(ss) {
   // All 8 default analytics sheets
   setupFleetSummarySheet(ss);
@@ -597,6 +840,7 @@ function regenerateAllAnalytics(ss) {
     ['LocationModelFiltered', setupLocationModelFilteredSheet],
     ['CategoryBreakdown', setupCategoryBreakdownSheet],
     ['ManufacturerSummary', setupManufacturerSummarySheet],
+    ['IndividualLookup', setupIndividualLookupSheet],
   ];
 
   let optCount = 0;

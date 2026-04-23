@@ -26,10 +26,13 @@ function setupAutomatedTriggers() {
 }
 
 function removeAllProjectTriggers() {
+  // Only remove time-based (CLOCK) triggers. Installable edit triggers
+  // (e.g., IndividualLookup) are user-driven and preserved across cycles.
   const triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(t => ScriptApp.deleteTrigger(t));
-  if (triggers.length > 0) {
-    logOperation('Triggers', 'REMOVED', `${triggers.length} trigger(s) removed`);
+  const clockTriggers = triggers.filter(t => t.getEventType() === ScriptApp.EventType.CLOCK);
+  clockTriggers.forEach(t => ScriptApp.deleteTrigger(t));
+  if (clockTriggers.length > 0) {
+    logOperation('Triggers', 'REMOVED', `${clockTriggers.length} time-based trigger(s) removed`);
   }
 }
 

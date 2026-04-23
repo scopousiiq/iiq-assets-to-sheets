@@ -78,6 +78,11 @@ function onOpen() {
         .addSeparator()
         .addItem('Regenerate Fleet Composition', 'menuRegenerateFleetComposition')
       )
+      .addSubMenu(ui.createMenu('People')
+        .addItem('Individual Lookup', 'menuAddIndividualLookup')
+        .addSeparator()
+        .addItem('Regenerate People', 'menuRegeneratePeople')
+      )
       .addSeparator()
       .addItem('Regenerate All Default (\u2605)', 'menuRegenerateAllDefault')
       .addItem('Regenerate All Analytics', 'menuRegenerateAllAnalytics')
@@ -132,10 +137,21 @@ function menuSetupTriggers() {
 
 function menuViewTriggerStatus() {
   const status = checkForTriggers();
-  const msg = status.hasTriggers
-    ? `${status.count} trigger(s) active:\n${status.triggers.join('\n')}`
-    : 'No automated triggers are installed.';
-  SpreadsheetApp.getUi().alert('Trigger Status', msg, SpreadsheetApp.getUi().ButtonSet.OK);
+  const otherCount = status.allCount - status.count;
+  const others = status.allTriggers.filter(n => status.triggers.indexOf(n) === -1);
+  const lines = [];
+  if (status.hasTriggers) {
+    lines.push(`${status.count} time-based trigger(s):`);
+    status.triggers.forEach(n => lines.push('  • ' + n));
+  } else {
+    lines.push('No time-based triggers installed.');
+  }
+  if (otherCount > 0) {
+    lines.push('');
+    lines.push(`${otherCount} other trigger(s) (edit/open/change):`);
+    others.forEach(n => lines.push('  • ' + n));
+  }
+  SpreadsheetApp.getUi().alert('Trigger Status', lines.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 function menuRemoveTriggers() {
@@ -479,6 +495,21 @@ function menuRegenerateFleetComposition() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const count = regenerateFleetComposition(ss);
   SpreadsheetApp.getUi().alert(`Regenerated ${count} Fleet Composition sheet(s).`);
+}
+
+// =============================================================================
+// ANALYTICS — PEOPLE
+// =============================================================================
+
+function menuAddIndividualLookup() {
+  setupIndividualLookupSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Individual Lookup sheet added.\n\nSelect a user from the dropdown in B1 to load their checkout history.');
+}
+
+function menuRegeneratePeople() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const count = regeneratePeople(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} People sheet(s).`);
 }
 
 // =============================================================================

@@ -184,11 +184,21 @@ function releaseScriptLock(lock) {
 
 function checkForTriggers() {
   const triggers = ScriptApp.getProjectTriggers();
-  const triggerNames = triggers.map(t => t.getHandlerFunction());
-  return { hasTriggers: triggers.length > 0, count: triggers.length, triggers: triggerNames };
+  const clockTriggers = triggers.filter(t => t.getEventType() === ScriptApp.EventType.CLOCK);
+  const clockNames = clockTriggers.map(t => t.getHandlerFunction());
+  const allNames = triggers.map(t => t.getHandlerFunction());
+  return {
+    hasTriggers: clockTriggers.length > 0,
+    count: clockTriggers.length,
+    triggers: clockNames,
+    allCount: triggers.length,
+    allTriggers: allNames
+  };
 }
 
 function requireNoTriggers(operationName) {
+  // Only time-based (CLOCK) triggers block destructive ops — those can race
+  // with bulk loads. Installable edit/open triggers are user-driven and safe.
   const ui = SpreadsheetApp.getUi();
   const triggerStatus = checkForTriggers();
   if (triggerStatus.hasTriggers) {

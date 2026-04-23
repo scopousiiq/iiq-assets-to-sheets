@@ -88,6 +88,11 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | CategoryBreakdown | "What types of devices do we have? Chromebooks vs laptops vs tablets?" |
 | ManufacturerSummary | "Which vendors are we invested in?" |
 
+**People**
+| Sheet | Question Answered |
+|-------|-------------------|
+| IndividualLookup | "What's this person's device assignment history?" (dropdown-driven, live API fetch against `/users/{userId}/activities` — works for direct-assignment districts without formal checkouts) |
+
 ## Menu Structure
 
 ```
@@ -132,6 +137,9 @@ iiQ Assets
 │   │   ├── CategoryBreakdown
 │   │   ├── ManufacturerSummary
 │   │   └── Regenerate Fleet Composition
+│   ├── People
+│   │   ├── Individual Lookup
+│   │   └── Regenerate People
 │   ├── Regenerate All Default (★)
 │   └── Regenerate All Analytics
 └── Reference Data
@@ -197,6 +205,7 @@ iiQ Assets
 | `/v1.0/assets/status/types?$s=100` | GET | Asset status types |
 | `/v1.0/sites/roles` | GET | Site roles (for STUDENT_ROLE_ID) |
 | `/v1.0/users?$s=1` | POST | User count by filters (enrollment) |
+| `/v1.0/users/{userId}/activities` | GET | Per-user activity log — filtered client-side for asset assignment events (IndividualLookup) |
 
 ## Config Sheet Keys
 

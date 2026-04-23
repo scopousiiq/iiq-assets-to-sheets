@@ -143,3 +143,23 @@ function getUserCount(filters) {
   return (response && response.Paging && response.Paging.TotalRows) || 0;
 }
 
+/**
+ * Get a user's full activity log. Items include asset assignment/unassignment
+ * events (Details contains "Asset #<tag>") mixed with user profile changes —
+ * callers must filter client-side. Works for direct-assignment districts that
+ * don't create formal checkout records.
+ *
+ * Response shape is {ItemCount, Items[]}, not {Item} as the OpenAPI spec
+ * declares. Each Item has: ActivityDate, ActivityType, UserId (actor),
+ * UserDetails (source hint, e.g. "AppId: infiniteCampus"), Details
+ * (JSON-encoded string).
+ *
+ * @param {string} userId - Target user UUID
+ * @param {number} pageSize - Max records to return (default 500)
+ * @returns {Object} - API response with Items[]
+ */
+function getUserActivities(userId, pageSize) {
+  const size = pageSize || 500;
+  return makeApiRequest(`/v1.0/users/${userId}/activities?$p=0&$s=${size}`, 'GET');
+}
+

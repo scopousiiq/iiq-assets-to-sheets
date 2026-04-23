@@ -208,16 +208,18 @@ Key patterns:
 
 ### Default vs Optional Sheets
 
-**10 default sheets** (marked with ★) are created by Setup Spreadsheet. They cover the most common reporting needs.
+**8 default sheets** (marked with ★) are created by Setup Spreadsheet. They cover the most common reporting needs.
 
-**13 optional sheets** can be installed individually from the **iiQ Assets > Analytics Sheets** menu. Each category submenu lists both default and optional sheets.
+**16 optional sheets** can be installed individually from the **iiQ Assets > Analytics Sheets** menu, organized into five category submenus (Fleet Operations, Service & Reliability, Budget & Planning, Fleet Composition, People). Each submenu lists both default and optional sheets.
+
+The **People** category holds `IndividualLookup` — a dropdown-driven per-user asset assignment history view. Unlike other analytics sheets, it calls the iiQ API live on selection (via `/users/{userId}/activities`) and writes results into the sheet, rather than using a spreadsheet formula. Works for districts that assign devices directly without formal checkouts.
 
 ### Regeneration
 
 Analytics formulas are live — they update automatically when data refreshes. Regeneration is only needed after a code update changes a formula definition. Options:
 
 - **Per-category:** e.g., "Regenerate Fleet Operations"
-- **Regenerate All Default (★):** Rebuilds the 10 default sheets
+- **Regenerate All Default (★):** Rebuilds the 8 default sheets
 - **Regenerate All Analytics:** Rebuilds all installed sheets
 
 Regeneration refreshes the formula in-place (via `getOrCreateSheet`) — it does not delete and recreate the sheet.
