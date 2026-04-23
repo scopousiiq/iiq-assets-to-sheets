@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "released": "2026-04-23",
+  "releaseUrl": "https://github.com/scopousiiq/iiq-assets-to-sheets/releases/latest",
+  "message": "IndividualLookup sheet (per-user asset assignment history via /users/{userId}/activities) + versioning infrastructure"
+}

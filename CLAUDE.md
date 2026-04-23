@@ -225,6 +225,13 @@ Progress Tracking (auto-managed):
 - `ASSET_LAST_PAGE`, `ASSET_TOTAL_PAGES`, `ASSET_COMPLETE`: Load progress
 - `LAST_REFRESH_DATE`: ISO timestamp of last incremental refresh
 
+Version Information (auto-managed):
+- `SCRIPT_VERSION`: Installed script version (from `SCRIPT_VERSION` constant in `Config.gs`)
+- `LATEST_VERSION`: Latest available version from GitHub, with status text and color-coded cell (green = current, yellow = update available)
+- `VERSION_CHECK_DATE`: Date of last successful version check
+
+**Version Check:** Scripts check GitHub daily for newer versions (piggybacked on `triggerDataContinue` — only fires if `isVersionCheckStale()` returns true, i.e. last check was >24h ago). Fetches `version.json` from the repo's `main` branch via raw.githubusercontent.com. Results land in the Config sheet with color coding — no pop-up dialogs. Manual check via **iiQ Assets > Setup > Check for Updates**. The version-check code fails silently if GitHub is unreachable — it must never break data operations.
+
 ## Data Loading
 
 **Initial Load — Bulk Asset Search:**

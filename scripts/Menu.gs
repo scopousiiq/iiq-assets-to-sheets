@@ -13,6 +13,8 @@ function onOpen() {
       .addItem('Setup Automated Triggers', 'menuSetupTriggers')
       .addItem('View Trigger Status', 'menuViewTriggerStatus')
       .addItem('Remove Automated Triggers', 'menuRemoveTriggers')
+      .addSeparator()
+      .addItem('Check for Updates', 'menuCheckForUpdates')
     )
     .addSeparator()
     .addSubMenu(ui.createMenu('Load Reference Data')

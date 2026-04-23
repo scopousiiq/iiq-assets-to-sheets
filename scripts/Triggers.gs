@@ -84,6 +84,11 @@ function triggerDataContinue() {
     }
 
     logOperation('Trigger', 'SKIP', 'triggerDataContinue - all loading complete');
+
+    // Daily version check (lightweight, <1 second). Must never affect data ops.
+    try {
+      if (isVersionCheckStale()) checkForUpdates();
+    } catch (e) { /* swallow — version check is non-critical */ }
   } finally {
     releaseScriptLock(lock);
   }

@@ -90,6 +90,11 @@ function setupConfigSheet(ss) {
     ['ASSET_TOTAL_PAGES', '-1'],
     ['ASSET_COMPLETE', 'FALSE'],
     ['LAST_REFRESH_DATE', ''],
+    ['', ''],
+    ['--- Version (auto-managed) ---', ''],
+    ['SCRIPT_VERSION', SCRIPT_VERSION],
+    ['LATEST_VERSION', ''],
+    ['VERSION_CHECK_DATE', ''],
   ];
 
   sheet.getRange(2, 1, configRows.length, 2).setValues(configRows);
