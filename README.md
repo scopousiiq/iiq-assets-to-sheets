@@ -62,7 +62,7 @@ Two Config keys control the ReplacementPlanning and ReplacementForecast sheets:
 ## What You Get
 
 **Data loaded automatically from your iiQ instance:**
-- Complete asset inventory (28 columns) — identity, device model, location, owner, status, purchase info, storage, tickets, and more
+- Complete asset inventory (30 columns) — identity, device model, location, owner (full name, first, last), status, purchase info, storage, tickets, and more
 - Location directory and asset status types
 - Student enrollment and device coverage per school (optional)
 
@@ -205,6 +205,27 @@ Connect your BI tool directly to this Google Spreadsheet:
 - **LocationEnrollment** for student device coverage metrics
 
 Data is refreshed daily at 3 AM. The weekly full refresh starts Sunday at 2 AM and may continue in 10-minute batches for larger districts.
+
+## Telemetry
+
+Starting with **v1.1.0**, new installs automatically send a small daily ping to a telemetry endpoint so the project maintainer can track adoption, version distribution, and approximate API-traffic volume.
+
+**What's sent (no PII, no asset content):**
+
+| Field | Example |
+|-------|---------|
+| `installId` | A random UUID generated once per installed copy |
+| `project` | `iiq-assets-to-sheets` |
+| `version` | `1.1.0` |
+| `districtHash` | SHA-256 of your `API_BASE_URL` (cannot be reversed to recover the domain) |
+| `assetCount` | Row count of your AssetData sheet |
+| `triggersEnabled` | Number of installed triggers |
+| `analyticsSheets` | Names of the analytics tabs you've installed |
+| `sentAt` | Timestamp |
+
+**To disable:** set `TELEMETRY_ENABLED` to `FALSE` in your Config sheet. The next scheduled run will honor the change — no restart needed. Last-ping timestamp is visible in the `TELEMETRY_LAST_SENT` Config row.
+
+**Existing (pre-1.1.0) installs:** telemetry stays off when you upgrade. Your Config sheet has no `TELEMETRY_ENABLED` row, which is treated as disabled. Telemetry only turns on if you run **Setup Spreadsheet** fresh (destructive) or manually add the row.
 
 ## Troubleshooting
 

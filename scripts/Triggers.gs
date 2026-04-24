@@ -89,6 +89,11 @@ function triggerDataContinue() {
     try {
       if (isVersionCheckStale()) checkForUpdates();
     } catch (e) { /* swallow — version check is non-critical */ }
+
+    // Daily telemetry ping (opt-in via Config). Failures are silent by design.
+    try {
+      if (isTelemetryStale()) reportTelemetry();
+    } catch (e) { /* swallow — telemetry is non-critical */ }
   } finally {
     releaseScriptLock(lock);
   }

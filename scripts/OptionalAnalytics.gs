@@ -22,7 +22,7 @@ function setupWarrantyTimelineSheet(ss) {
     '  total, BYROW(quarters, LAMBDA(q, SUMPRODUCT((' + qtr + '=q)*1))),\n' +
     '  active, BYROW(quarters, LAMBDA(q, SUMPRODUCT((' + qtr + '=q)*(AssetData!M2:M<>"Retired")*(AssetData!M2:M<>"")*1))),\n' +
     '  value, BYROW(quarters, LAMBDA(q, SUMPRODUCT((' + qtr + '=q)*IF(ISNUMBER(AssetData!P2:P),AssetData!P2:P,0)))),\n' +
-    '  avg_age, BYROW(quarters, LAMBDA(q, IFERROR(SUMPRODUCT((' + qtr + '=q)*IF(ISNUMBER(AssetData!AA2:AA),AssetData!AA2:AA,0))/SUMPRODUCT((' + qtr + '=q)*1),0))),\n' +
+    '  avg_age, BYROW(quarters, LAMBDA(q, IFERROR(SUMPRODUCT((' + qtr + '=q)*IF(ISNUMBER(AssetData!AC2:AC),AssetData!AC2:AC,0))/SUMPRODUCT((' + qtr + '=q)*1),0))),\n' +
     '  IFERROR(SORT(HSTACK(quarters, total, active, value, avg_age),1,TRUE),\n' +
     '    HSTACK(quarters, total, active, value, avg_age))\n' +
     ')';
@@ -81,7 +81,7 @@ function setupUnassignedInventorySheet(ss) {
     '  locs, UNIQUE(FILTER(AssetData!I2:I, (AssetData!I2:I<>"")*(AssetData!K2:K=""))),\n' +
     '  total, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!K:K, ""))),\n' +
     '  active, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!K:K, "", AssetData!M:M, "<>Retired"))),\n' +
-    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!I:I, loc, AssetData!K:K, ""), 0))),\n' +
+    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!I:I, loc, AssetData!K:K, ""), 0))),\n' +
     '  value, BYROW(locs, LAMBDA(loc, SUMIFS(AssetData!P:P, AssetData!I:I, loc, AssetData!K:K, ""))),\n' +
     '  IFERROR(SORT(HSTACK(locs, total, active, avg_age, value), 2, FALSE),\n' +
     '    HSTACK(locs, total, active, avg_age, value))\n' +
@@ -106,7 +106,7 @@ function setupDeviceLifecycleSheet(ss) {
     '  models, UNIQUE(FILTER(AssetData!E2:E, (AssetData!E2:E<>"")*(AssetData!M2:M="Retired"))),\n' +
     '  mfr, BYROW(models, LAMBDA(m, IFERROR(INDEX(FILTER(AssetData!F:F, AssetData!E:E=m), 1), ""))),\n' +
     '  retired, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!E:E, m, AssetData!M:M, "Retired"))),\n' +
-    '  avg_life, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!E:E, m, AssetData!M:M, "Retired"), 0))),\n' +
+    '  avg_life, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!E:E, m, AssetData!M:M, "Retired"), 0))),\n' +
     '  active, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!E:E, m, AssetData!M:M, "<>Retired"))),\n' +
     '  IFERROR(SORT(HSTACK(models, mfr, retired, avg_life, active), 4, FALSE),\n' +
     '    HSTACK(models, mfr, retired, avg_life, active))\n' +
@@ -131,7 +131,7 @@ function setupCategoryBreakdownSheet(ss) {
     '  total, BYROW(cats, LAMBDA(c, COUNTIF(AssetData!G:G, c))),\n' +
     '  active, BYROW(cats, LAMBDA(c, COUNTIFS(AssetData!G:G, c, AssetData!M:M, "<>Retired"))),\n' +
     '  retired, BYROW(cats, LAMBDA(c, COUNTIFS(AssetData!G:G, c, AssetData!M:M, "Retired"))),\n' +
-    '  avg_age, BYROW(cats, LAMBDA(c, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!G:G, c), 0))),\n' +
+    '  avg_age, BYROW(cats, LAMBDA(c, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!G:G, c), 0))),\n' +
     '  value, BYROW(cats, LAMBDA(c, SUMIF(AssetData!G:G, c, AssetData!P:P))),\n' +
     '  IFERROR(SORT(HSTACK(cats, total, active, retired, avg_age, value), 2, FALSE),\n' +
     '    HSTACK(cats, total, active, retired, avg_age, value))\n' +
@@ -155,9 +155,9 @@ function setupManufacturerSummarySheet(ss) {
   const formula = '=LET(\n' +
     '  mfrs, UNIQUE(FILTER(AssetData!F2:F, AssetData!F2:F<>"")),\n' +
     '  total, BYROW(mfrs, LAMBDA(m, COUNTIF(AssetData!F:F, m))),\n' +
-    '  avg_age, BYROW(mfrs, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!F:F, m), 0))),\n' +
-    '  warr_active, BYROW(mfrs, LAMBDA(m, COUNTIFS(AssetData!F:F, m, AssetData!AB:AB, "Active"))),\n' +
-    '  warr_expired, BYROW(mfrs, LAMBDA(m, COUNTIFS(AssetData!F:F, m, AssetData!AB:AB, "Expired"))),\n' +
+    '  avg_age, BYROW(mfrs, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!F:F, m), 0))),\n' +
+    '  warr_active, BYROW(mfrs, LAMBDA(m, COUNTIFS(AssetData!F:F, m, AssetData!AD:AD, "Active"))),\n' +
+    '  warr_expired, BYROW(mfrs, LAMBDA(m, COUNTIFS(AssetData!F:F, m, AssetData!AD:AD, "Expired"))),\n' +
     '  tickets, BYROW(mfrs, LAMBDA(m, SUMIF(AssetData!F:F, m, AssetData!Y:Y))),\n' +
     '  tix_per, BYROW(mfrs, LAMBDA(m, IFERROR(SUMIF(AssetData!F:F, m, AssetData!Y:Y)/COUNTIF(AssetData!F:F, m), 0))),\n' +
     '  IFERROR(SORT(HSTACK(mfrs, total, avg_age, warr_active, warr_expired, tickets, tix_per), 2, FALSE),\n' +
@@ -185,7 +185,7 @@ function setupHighTicketLocationsSheet(ss) {
     '  active, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!M:M, "<>Retired"))),\n' +
     '  tickets, BYROW(locs, LAMBDA(loc, SUMIF(AssetData!I:I, loc, AssetData!Y:Y))),\n' +
     '  tix_per, BYROW(locs, LAMBDA(loc, IFERROR(SUMIF(AssetData!I:I, loc, AssetData!Y:Y)/COUNTIF(AssetData!I:I, loc), 0))),\n' +
-    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!I:I, loc), 0))),\n' +
+    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!I:I, loc), 0))),\n' +
     '  IFERROR(SORT(HSTACK(locs, total, active, tickets, tix_per, avg_age), 5, FALSE),\n' +
     '    HSTACK(locs, total, active, tickets, tix_per, avg_age))\n' +
     ')';
@@ -404,10 +404,10 @@ function setupReplacementPlanningSheet(ss) {
     '  active, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!M:M, "<>Retired"))),\n' +
     '  curr_over, BYROW(locs, LAMBDA(loc, SUMPRODUCT(\n' +
     '    (AssetData!I2:I=loc)*(AssetData!M2:M<>"Retired")*(AssetData!M2:M<>"")\n' +
-    '    *(ISNUMBER(AssetData!AA2:AA))*(AssetData!AA2:AA>=age_yrs)*1))),\n' +
+    '    *(ISNUMBER(AssetData!AC2:AC))*(AssetData!AC2:AC>=age_yrs)*1))),\n' +
     '  future_over, BYROW(locs, LAMBDA(loc, SUMPRODUCT(\n' +
     '    (AssetData!I2:I=loc)*(AssetData!M2:M<>"Retired")*(AssetData!M2:M<>"")\n' +
-    '    *(ISNUMBER(AssetData!AA2:AA))*((AssetData!AA2:AA+days_delta)>=age_yrs)*1))),\n' +
+    '    *(ISNUMBER(AssetData!AC2:AC))*((AssetData!AC2:AC+days_delta)>=age_yrs)*1))),\n' +
     '  new_repl, BYROW(SEQUENCE(ROWS(locs)), LAMBDA(i, INDEX(future_over, i) - INDEX(curr_over, i))),\n' +
     '  curr_pct, BYROW(SEQUENCE(ROWS(locs)), LAMBDA(i, IFERROR(INDEX(curr_over, i) / INDEX(active, i), 0))),\n' +
     '  future_pct, BYROW(SEQUENCE(ROWS(locs)), LAMBDA(i, IFERROR(INDEX(future_over, i) / INDEX(active, i), 0))),\n' +
@@ -448,7 +448,7 @@ function setupLocationModelBreakdownSheet(ss) {
     '  retired, BYROW(SEQUENCE(ROWS(pairs)), LAMBDA(i,\n' +
     '    COUNTIFS(AssetData!I:I, INDEX(loc_col, i), AssetData!E:E, INDEX(model_col, i), AssetData!M:M, "Retired"))),\n' +
     '  avg_age, BYROW(SEQUENCE(ROWS(pairs)), LAMBDA(i,\n' +
-    '    IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!I:I, INDEX(loc_col, i), AssetData!E:E, INDEX(model_col, i)), 0))),\n' +
+    '    IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!I:I, INDEX(loc_col, i), AssetData!E:E, INDEX(model_col, i)), 0))),\n' +
     '  IFERROR(SORT(HSTACK(loc_col, model_col, mfr, total, active, retired, avg_age), 1, TRUE, 4, FALSE),\n' +
     '    HSTACK(loc_col, model_col, mfr, total, active, retired, avg_age))\n' +
     ')';
@@ -496,7 +496,7 @@ function setupLocationModelFilteredSheet(ss) {
     '    total, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!I:I, sel, AssetData!E:E, m))),\n' +
     '    active, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!I:I, sel, AssetData!E:E, m, AssetData!M:M, "<>Retired"))),\n' +
     '    retired, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!I:I, sel, AssetData!E:E, m, AssetData!M:M, "Retired"))),\n' +
-    '    avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!I:I, sel, AssetData!E:E, m), 0))),\n' +
+    '    avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!I:I, sel, AssetData!E:E, m), 0))),\n' +
     '    IFERROR(SORT(HSTACK(models, mfr, total, active, retired, avg_age), 3, FALSE),\n' +
     '      HSTACK(models, mfr, total, active, retired, avg_age))\n' +
     '  )\n' +
@@ -634,7 +634,7 @@ function onEditIndividualLookup(e) {
 function resolveOwnerIdByName(ss, name) {
   const assetData = ss.getSheetByName('AssetData');
   if (!assetData || assetData.getLastRow() < 2) return null;
-  // Columns K=OwnerId (11), L=OwnerName (12). Read both as a single range for speed.
+  // Columns K=OwnerId (11), L=OwnerFullName (12). Read both as a single range for speed.
   const values = assetData.getRange(2, 11, assetData.getLastRow() - 1, 2).getValues();
   for (let i = 0; i < values.length; i++) {
     if (values[i][1] === name && values[i][0]) return values[i][0];
@@ -648,7 +648,7 @@ function buildAssetTagMap(ss) {
   if (!assetData || assetData.getLastRow() < 2) return map;
   // Columns A-L: AssetId, AssetTag, Name, SerialNumber, ModelName,
   // ManufacturerName, CategoryName, LocationId, LocationName, LocationType,
-  // OwnerId, OwnerName.
+  // OwnerId, OwnerFullName.
   const rows = assetData.getRange(2, 1, assetData.getLastRow() - 1, 12).getValues();
   for (let i = 0; i < rows.length; i++) {
     const tag = rows[i][1];

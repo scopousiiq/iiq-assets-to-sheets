@@ -4,9 +4,9 @@
  * Loads assets via paginated search with checkpoint resume.
  * Supports incremental refresh via ModifiedDate filter.
  *
- * Column layout (28 columns, A-AB):
+ * Column layout (30 columns, A-AD):
  *   A  AssetId            K  OwnerId
- *   B  AssetTag           L  OwnerName
+ *   B  AssetTag           L  OwnerFullName
  *   C  Name               M  StatusName
  *   D  SerialNumber       N  PurchasedDate
  *   E  ModelName          O  WarrantyExpDate
@@ -20,25 +20,28 @@
  *                         W  StorageUnitNumber
  *                         X  DeployedDate
  *                         Y  OpenTickets
- *                         Z  AgeDays (formula)
- *                         AA AgeYears (formula)
- *                         AB WarrantyStatus (formula)
+ *                         Z  OwnerFirstName
+ *                         AA OwnerLastName
+ *                         AB AgeDays (formula)
+ *                         AC AgeYears (formula)
+ *                         AD WarrantyStatus (formula)
  */
 
 const ASSET_HEADERS = [
   'AssetId', 'AssetTag', 'Name', 'SerialNumber',
   'ModelName', 'ManufacturerName', 'CategoryName',
   'LocationId', 'LocationName', 'LocationType',
-  'OwnerId', 'OwnerName', 'StatusName',
+  'OwnerId', 'OwnerFullName', 'StatusName',
   'PurchasedDate', 'WarrantyExpDate', 'PurchasePrice',
   'CreatedDate', 'ModifiedDate',
   'OwnerRoleName', 'OwnerGrade', 'OwnerLocationId',
   'StorageLocationName', 'StorageUnitNumber', 'DeployedDate',
   'OpenTickets',
+  'OwnerFirstName', 'OwnerLastName',
   'AgeDays', 'AgeYears', 'WarrantyStatus'
 ];
-const ASSET_DATA_COLS = 25;  // Columns A-Y (API data)
-const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 28 (includes formula columns)
+const ASSET_DATA_COLS = 27;  // Columns A-AA (API data)
+const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 30 (includes formula columns)
 const MAX_RUNTIME_MS = 5.5 * 60 * 1000;
 
 // =============================================================================
@@ -212,7 +215,7 @@ function refreshAssetData(showUI) {
 
 /**
  * Extract one row of asset data from an API response item.
- * Returns array of ASSET_DATA_COLS values (columns A-Y).
+ * Returns array of ASSET_DATA_COLS values (columns A-AA).
  */
 function extractAssetRow(asset) {
   const model = asset.Model || {};
@@ -232,7 +235,7 @@ function extractAssetRow(asset) {
     location.Name || asset.LocationName || '',
     location.LocationTypeName || '',
     owner.UserId || asset.OwnerId || '',
-    owner.Name || asset.OwnerName || '',
+    owner.FullName || owner.Name || asset.OwnerName || '',
     status.Name || asset.StatusName || '',
     formatDate(asset.PurchasedDate),
     formatDate(asset.WarrantyExpirationDate),
@@ -249,6 +252,9 @@ function extractAssetRow(asset) {
     formatDate(asset.DeployedDate),
     // Tickets
     asset.OpenTicketCount ?? asset.OpenTickets ?? '',
+    // Owner name parts
+    owner.FirstName || '',
+    owner.LastName || '',
   ];
 }
 

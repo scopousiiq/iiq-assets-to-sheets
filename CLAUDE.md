@@ -42,7 +42,7 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 |-------|------|---------|
 | Instructions | Static | Setup and usage guide |
 | Config | Manual | API settings, progress tracking |
-| AssetData | Data | Main asset data (28 columns: 25 API + 3 formula) |
+| AssetData | Data | Main asset data (30 columns: 27 API + 3 formula) |
 | Locations | Reference | Location directory |
 | StatusTypes | Reference | Asset status type directory |
 | Logs | Data | Operation logs |
@@ -151,7 +151,7 @@ iiQ Assets
 
 **Regeneration:** Analytics setup functions use `getOrCreateSheet` -- on regeneration, only the formula is refreshed (no delete/create/reformat). Formulas are live and auto-recalculate when AssetData changes; regeneration is only needed after code updates.
 
-## AssetData Column Layout (28 columns)
+## AssetData Column Layout (30 columns)
 
 | Col | Header | Source |
 |-----|--------|--------|
@@ -166,7 +166,7 @@ iiQ Assets
 | I | LocationName | API (Location.Name) |
 | J | LocationType | API (Location.LocationTypeName) |
 | K | OwnerId | API |
-| L | OwnerName | API (Owner.Name) |
+| L | OwnerFullName | API (Owner.FullName, fallback Owner.Name) |
 | M | StatusName | API (AssetStatus.Name) |
 | N | PurchasedDate | API |
 | O | WarrantyExpDate | API (WarrantyExpirationDate) |
@@ -180,9 +180,11 @@ iiQ Assets
 | W | StorageUnitNumber | API |
 | X | DeployedDate | API |
 | Y | OpenTickets | API (OpenTicketCount) |
-| Z | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
-| AA | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
-| AB | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
+| Z | OwnerFirstName | API (Owner.FirstName) |
+| AA | OwnerLastName | API (Owner.LastName) |
+| AB | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
+| AC | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
+| AD | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
 
 ### Analytics Formula Column Reference
 
@@ -192,9 +194,12 @@ iiQ Assets
 | Model | **E (ModelName)** |
 | Manufacturer | **F (ManufacturerName)** |
 | Status | **M (StatusName)** |
-| Warranty Status | **AB (WarrantyStatus)** |
-| Age (Years) | **AA (AgeYears)** |
+| Warranty Status | **AD (WarrantyStatus)** |
+| Age (Years) | **AC (AgeYears)** |
 | Open Tickets | **Y (OpenTickets)** |
+| Owner Full Name | **L (OwnerFullName)** |
+| Owner First Name | **Z (OwnerFirstName)** |
+| Owner Last Name | **AA (OwnerLastName)** |
 
 ## API Endpoints Used
 
@@ -231,6 +236,14 @@ Version Information (auto-managed):
 - `VERSION_CHECK_DATE`: Date of last successful version check
 
 **Version Check:** Scripts check GitHub daily for newer versions (piggybacked on `triggerDataContinue` — only fires if `isVersionCheckStale()` returns true, i.e. last check was >24h ago). Fetches `version.json` from the repo's `main` branch via raw.githubusercontent.com. Results land in the Config sheet with color coding — no pop-up dialogs. Manual check via **iiQ Assets > Setup > Check for Updates**. The version-check code fails silently if GitHub is unreachable — it must never break data operations.
+
+Telemetry (on by default for new installs):
+- `TELEMETRY_ENABLED`: `TRUE` by default on new Setup Spreadsheet runs. Set to `FALSE` to disable.
+- `TELEMETRY_LAST_SENT`: ISO timestamp of last successful ping.
+
+The endpoint URL is a maintainer decision, not a district setting — it lives as a hardcoded `TELEMETRY_URL` constant at the top of `Config.gs`. Blank until the server is deployed; `reportTelemetry()` is a no-op while it's blank.
+
+**Telemetry:** When enabled, `triggerDataContinue` POSTs a small JSON payload once per 24h to `TELEMETRY_URL` so the project maintainer can see install counts, version distribution, installed analytics sheets, and approximate API-traffic volume. Payload: `{installId, project, version, districtHash, assetCount, analyticsSheets, triggersEnabled, sentAt}`. No PII is sent — `districtHash` is SHA-256 of `API_BASE_URL`, `installId` is a stable UUID in `PropertiesService`. All failures are silent. Existing pre-1.1.0 installs don't auto-enable on upgrade — they have no `TELEMETRY_ENABLED` row, which is read as disabled. Server lives in the sibling workspace directory `iiq-sheets-telemetry/`.
 
 ## Data Loading
 

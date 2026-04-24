@@ -95,6 +95,10 @@ function setupConfigSheet(ss) {
     ['SCRIPT_VERSION', SCRIPT_VERSION],
     ['LATEST_VERSION', ''],
     ['VERSION_CHECK_DATE', ''],
+    ['', ''],
+    ['--- Telemetry (on by default — set TELEMETRY_ENABLED to FALSE to disable) ---', ''],
+    ['TELEMETRY_ENABLED', 'TRUE'],
+    ['TELEMETRY_LAST_SENT', ''],
   ];
 
   sheet.getRange(2, 1, configRows.length, 2).setValues(configRows);
@@ -129,21 +133,21 @@ function applyAssetFormulas() {
 
   // Clear any existing per-row formulas in the formula columns before applying ARRAYFORMULAs
   const numRows = lastRow - 1;
-  sheet.getRange(2, 26, numRows, 3).clearContent();
+  sheet.getRange(2, 28, numRows, 3).clearContent();
 
-  // Column Z (26): AgeDays — days since PurchasedDate (col N), falls back to CreatedDate (col Q)
+  // Column AB (28): AgeDays — days since PurchasedDate (col N), falls back to CreatedDate (col Q)
   // Uses (N="")*(Q="") instead of AND() which doesn't work in ARRAYFORMULA
-  sheet.getRange(2, 26).setFormula(
+  sheet.getRange(2, 28).setFormula(
     '=ARRAYFORMULA(IF(A2:A="","",IF((N2:N="")*(Q2:Q=""),"",INT(TODAY()-IF(N2:N<>"",N2:N,Q2:Q)))))'
   );
 
-  // Column AA (27): AgeYears — AgeDays / 365.25
-  sheet.getRange(2, 27).setFormula(
-    '=ARRAYFORMULA(IF(A2:A="","",IF(Z2:Z="","",ROUND(Z2:Z/365.25,1))))'
+  // Column AC (29): AgeYears — AgeDays / 365.25
+  sheet.getRange(2, 29).setFormula(
+    '=ARRAYFORMULA(IF(A2:A="","",IF(AB2:AB="","",ROUND(AB2:AB/365.25,1))))'
   );
 
-  // Column AB (28): WarrantyStatus — based on WarrantyExpDate (col O)
-  sheet.getRange(2, 28).setFormula(
+  // Column AD (30): WarrantyStatus — based on WarrantyExpDate (col O)
+  sheet.getRange(2, 30).setFormula(
     '=ARRAYFORMULA(IF(A2:A="","",IF(O2:O="","None",IF(O2:O<TODAY(),"Expired",IF(O2:O<TODAY()+90,"Expiring","Active")))))'
   );
 
@@ -312,12 +316,12 @@ function setupInstructionsSheet(ss) {
     [''],                                                                                   // 112
     ['DATA SHEETS (populated by scripts):'],                                                 // 113
     [''],                                                                                   // 114
-    ['• AssetData (28 columns: 25 from API + 3 calculated)'],                                // 115
+    ['• AssetData (30 columns: 27 from API + 3 calculated)'],                                // 115
     ['  Main asset inventory. Columns:'],                                                    // 116
     ['  - Identity: AssetId, AssetTag, Name, SerialNumber'],                                 // 117
     ['  - Device: ModelName, ManufacturerName, CategoryName'],                               // 118
     ['  - Location: LocationId, LocationName, LocationType'],                                // 119
-    ['  - Assignment: OwnerId, OwnerName'],                                                  // 120
+    ['  - Assignment: OwnerId, OwnerFullName, OwnerFirstName, OwnerLastName'],               // 120
     ['  - Status: StatusName (Active, Retired, In Storage, etc.)'],                          // 121
     ['  - Purchase: PurchasedDate, WarrantyExpDate, PurchasePrice'],                          // 122
     ['  - Tracking: CreatedDate, ModifiedDate'],                                             // 123
@@ -656,8 +660,8 @@ function setupLocationSummarySheet(ss) {
     '  total, BYROW(locs, LAMBDA(loc, COUNTIF(AssetData!I:I, loc))),\n' +
     '  active, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!M:M, "<>Retired"))),\n' +
     '  retired, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!M:M, "Retired"))),\n' +
-    '  warr_exp, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AB:AB, "Expired"))),\n' +
-    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!I:I, loc), 0))),\n' +
+    '  warr_exp, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expired"))),\n' +
+    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!I:I, loc), 0))),\n' +
     '  assigned, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!K:K, "<>"))),\n' +
     '  students, BYROW(locs, LAMBDA(loc, IFERROR(INDEX(FILTER(LocationEnrollment!D:D, LocationEnrollment!B:B=loc), 1), 0))),\n' +
     '  with_dev, BYROW(locs, LAMBDA(loc, IFERROR(INDEX(FILTER(LocationEnrollment!E:E, LocationEnrollment!B:B=loc), 1), 0))),\n' +
@@ -683,7 +687,7 @@ function setupModelBreakdownSheet(ss) {
     '  total, BYROW(models, LAMBDA(m, COUNTIF(AssetData!E:E, m))),\n' +
     '  active, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!E:E, m, AssetData!M:M, "<>Retired"))),\n' +
     '  retired, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!E:E, m, AssetData!M:M, "Retired"))),\n' +
-    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!E:E, m), 0))),\n' +
+    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!E:E, m), 0))),\n' +
     '  IFERROR(SORT(HSTACK(models, mfr, total, active, retired, avg_age), 3, FALSE),\n' +
     '    HSTACK(models, mfr, total, active, retired, avg_age))\n' +
     ')';
@@ -698,13 +702,13 @@ function setupBudgetPlanningSheet(ss) {
 
   const formula = '=LET(\n' +
     '  locs, UNIQUE(FILTER(AssetData!I2:I, AssetData!I2:I<>"")),\n' +
-    '  warr_expired, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AB:AB, "Expired", AssetData!M:M, "<>Retired"))),\n' +
-    '  warr_expiring, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AB:AB, "Expiring", AssetData!M:M, "<>Retired"))),\n' +
-    '  old_devices, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AA:AA, ">="&4, AssetData!M:M, "<>Retired"))),\n' +
+    '  warr_expired, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expired", AssetData!M:M, "<>Retired"))),\n' +
+    '  warr_expiring, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expiring", AssetData!M:M, "<>Retired"))),\n' +
+    '  old_devices, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AC:AC, ">="&4, AssetData!M:M, "<>Retired"))),\n' +
     '  avg_price, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!P:P, AssetData!I:I, loc, AssetData!P:P, ">0"), 0))),\n' +
     '  est_cost, BYROW(locs, LAMBDA(loc, IFERROR(\n' +
-    '    (COUNTIFS(AssetData!I:I, loc, AssetData!AB:AB, "Expired", AssetData!M:M, "<>Retired")\n' +
-    '     + COUNTIFS(AssetData!I:I, loc, AssetData!AB:AB, "Expiring", AssetData!M:M, "<>Retired"))\n' +
+    '    (COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expired", AssetData!M:M, "<>Retired")\n' +
+    '     + COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expiring", AssetData!M:M, "<>Retired"))\n' +
     '    * AVERAGEIFS(AssetData!P:P, AssetData!I:I, loc, AssetData!P:P, ">0"), 0))),\n' +
     '  IFERROR(SORT(HSTACK(locs, warr_expired, warr_expiring, old_devices, avg_price, est_cost), 6, FALSE),\n' +
     '    HSTACK(locs, warr_expired, warr_expiring, old_devices, avg_price, est_cost))\n' +
@@ -731,15 +735,15 @@ function setupFleetSummarySheet(ss) {
     ['Avg Purchase Price', '=IFERROR(AVERAGEIF(AssetData!P2:P,">0"),0)'],
     ['', ''],
     ['--- Fleet Age ---', ''],
-    ['Avg Age (Years)', '=IFERROR(AVERAGE(AssetData!AA2:AA),0)'],
-    ['Active Devices > 4 Years', '=COUNTIFS(AssetData!AA2:AA,">="&4,AssetData!M2:M,"<>Retired")'],
+    ['Avg Age (Years)', '=IFERROR(AVERAGE(AssetData!AC2:AC),0)'],
+    ['Active Devices > 4 Years', '=COUNTIFS(AssetData!AC2:AC,">="&4,AssetData!M2:M,"<>Retired")'],
     ['', ''],
     ['--- Warranty ---', ''],
-    ['Warranty Active', '=COUNTIF(AssetData!AB2:AB,"Active")'],
-    ['Warranty Expiring (< 90 days)', '=COUNTIF(AssetData!AB2:AB,"Expiring")'],
-    ['Warranty Expired', '=COUNTIF(AssetData!AB2:AB,"Expired")'],
-    ['No Warranty Data', '=COUNTIF(AssetData!AB2:AB,"None")'],
-    ['Warranty Coverage Rate', '=IFERROR((COUNTIF(AssetData!AB2:AB,"Active")+COUNTIF(AssetData!AB2:AB,"Expiring"))/(COUNTA(AssetData!A2:A)-COUNTIF(AssetData!AB2:AB,"None")),0)'],
+    ['Warranty Active', '=COUNTIF(AssetData!AD2:AD,"Active")'],
+    ['Warranty Expiring (< 90 days)', '=COUNTIF(AssetData!AD2:AD,"Expiring")'],
+    ['Warranty Expired', '=COUNTIF(AssetData!AD2:AD,"Expired")'],
+    ['No Warranty Data', '=COUNTIF(AssetData!AD2:AD,"None")'],
+    ['Warranty Coverage Rate', '=IFERROR((COUNTIF(AssetData!AD2:AD,"Active")+COUNTIF(AssetData!AD2:AD,"Expiring"))/(COUNTA(AssetData!A2:A)-COUNTIF(AssetData!AD2:AD,"None")),0)'],
     ['', ''],
     ['--- Service Load ---', ''],
     ['Total Open Tickets', '=SUM(AssetData!Y2:Y)'],
@@ -787,7 +791,7 @@ function setupAgingAnalysisSheet(ss) {
   const yr = 'IFERROR(YEAR(IF(AssetData!N2:N<>"", AssetData!N2:N, AssetData!Q2:Q)), 0)';
   const formula = '=LET(\n' +
     '  all_status, AssetData!M2:M,\n' +
-    '  all_warranty, AssetData!AB2:AB,\n' +
+    '  all_warranty, AssetData!AD2:AD,\n' +
     '  all_tickets, AssetData!Y2:Y,\n' +
     '  all_price, AssetData!P2:P,\n' +
     '  years, SORT(UNIQUE(FILTER(' + yr + ', ' + yr + '>0)), 1, TRUE),\n' +
@@ -816,7 +820,7 @@ function setupServiceImpactSheet(ss) {
     '  dev_count, BYROW(models, LAMBDA(m, COUNTIF(AssetData!E:E, m))),\n' +
     '  tot_tickets, BYROW(models, LAMBDA(m, SUMIF(AssetData!E:E, m, AssetData!Y:Y))),\n' +
     '  tix_per, BYROW(models, LAMBDA(m, IFERROR(SUMIF(AssetData!E:E, m, AssetData!Y:Y)/COUNTIF(AssetData!E:E, m), 0))),\n' +
-    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AA:AA, AssetData!E:E, m), 0))),\n' +
+    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!E:E, m), 0))),\n' +
     '  IFERROR(SORT(HSTACK(models, mfr, dev_count, tot_tickets, tix_per, avg_age), 5, FALSE),\n' +
     '    HSTACK(models, mfr, dev_count, tot_tickets, tix_per, avg_age))\n' +
     ')';

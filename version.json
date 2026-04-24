@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "released": "2026-04-23",
+  "version": "1.2.0",
+  "released": "2026-04-24",
   "releaseUrl": "https://github.com/scopousiiq/iiq-assets-to-sheets/releases/latest",
-  "message": "IndividualLookup sheet (per-user asset assignment history via /users/{userId}/activities) + versioning infrastructure"
+  "message": "Owner name split: L renamed OwnerName → OwnerFullName, new Z=OwnerFirstName, AA=OwnerLastName. Formula cols shifted to AB/AC/AD. Re-run Setup Spreadsheet or Full Reload to repopulate existing data."
 }
