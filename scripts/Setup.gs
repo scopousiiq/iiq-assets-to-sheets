@@ -96,9 +96,8 @@ function setupConfigSheet(ss) {
     ['LATEST_VERSION', ''],
     ['VERSION_CHECK_DATE', ''],
     ['', ''],
-    ['--- Telemetry (on by default — set TELEMETRY_ENABLED to FALSE to disable) ---', ''],
+    ['--- Telemetry (required for automated polling) ---', ''],
     ['TELEMETRY_ENABLED', 'TRUE'],
-    ['TELEMETRY_LAST_SENT', ''],
   ];
 
   sheet.getRange(2, 1, configRows.length, 2).setValues(configRows);
@@ -133,21 +132,21 @@ function applyAssetFormulas() {
 
   // Clear any existing per-row formulas in the formula columns before applying ARRAYFORMULAs
   const numRows = lastRow - 1;
-  sheet.getRange(2, 28, numRows, 3).clearContent();
+  sheet.getRange(2, 30, numRows, 3).clearContent();
 
-  // Column AB (28): AgeDays — days since PurchasedDate (col N), falls back to CreatedDate (col Q)
+  // Column AD (30): AgeDays — days since PurchasedDate (col N), falls back to CreatedDate (col Q)
   // Uses (N="")*(Q="") instead of AND() which doesn't work in ARRAYFORMULA
-  sheet.getRange(2, 28).setFormula(
+  sheet.getRange(2, 30).setFormula(
     '=ARRAYFORMULA(IF(A2:A="","",IF((N2:N="")*(Q2:Q=""),"",INT(TODAY()-IF(N2:N<>"",N2:N,Q2:Q)))))'
   );
 
-  // Column AC (29): AgeYears — AgeDays / 365.25
-  sheet.getRange(2, 29).setFormula(
-    '=ARRAYFORMULA(IF(A2:A="","",IF(AB2:AB="","",ROUND(AB2:AB/365.25,1))))'
+  // Column AE (31): AgeYears — AgeDays / 365.25
+  sheet.getRange(2, 31).setFormula(
+    '=ARRAYFORMULA(IF(A2:A="","",IF(AD2:AD="","",ROUND(AD2:AD/365.25,1))))'
   );
 
-  // Column AD (30): WarrantyStatus — based on WarrantyExpDate (col O)
-  sheet.getRange(2, 30).setFormula(
+  // Column AF (32): WarrantyStatus — based on WarrantyExpDate (col O)
+  sheet.getRange(2, 32).setFormula(
     '=ARRAYFORMULA(IF(A2:A="","",IF(O2:O="","None",IF(O2:O<TODAY(),"Expired",IF(O2:O<TODAY()+90,"Expiring","Active")))))'
   );
 
@@ -236,7 +235,7 @@ function setupInstructionsSheet(ss) {
     [''],                                                                                   // 34
     ['2. CONFIGURE API CREDENTIALS (Config sheet)'],                                        // 35
     ['   • API_BASE_URL: Your iiQ instance (e.g., https://district.incidentiq.com)'],       // 36
-    ['   • BEARER_TOKEN: JWT token from iiQ (Admin > Integrations > API)'],                 // 37
+    ['   • BEARER_TOKEN: JWT token from iiQ (Admin > Developer Tools)'],                    // 37
     ['   • SITE_ID: Optional — only needed for multi-site instances'],
     ['   • REPLACEMENT_AGE_YEARS: Device age threshold in years (default 4)'],
     ['   • NEXT_SCHOOL_YEAR_START: Target date for replacement planning (default 2026-07-01)'],
@@ -316,7 +315,7 @@ function setupInstructionsSheet(ss) {
     [''],                                                                                   // 112
     ['DATA SHEETS (populated by scripts):'],                                                 // 113
     [''],                                                                                   // 114
-    ['• AssetData (30 columns: 27 from API + 3 calculated)'],                                // 115
+    ['• AssetData (32 columns: 29 from API + 3 calculated)'],                                // 115
     ['  Main asset inventory. Columns:'],                                                    // 116
     ['  - Identity: AssetId, AssetTag, Name, SerialNumber'],                                 // 117
     ['  - Device: ModelName, ManufacturerName, CategoryName'],                               // 118
@@ -325,7 +324,7 @@ function setupInstructionsSheet(ss) {
     ['  - Status: StatusName (Active, Retired, In Storage, etc.)'],                          // 121
     ['  - Purchase: PurchasedDate, WarrantyExpDate, PurchasePrice'],                          // 122
     ['  - Tracking: CreatedDate, ModifiedDate'],                                             // 123
-    ['  - Owner Detail: OwnerRoleName, OwnerGrade, OwnerLocationId'],                        // 124
+    ['  - Owner Detail: OwnerRoleName, OwnerGrade, OwnerLocationId, OwnerEmail, OwnerSchoolIdNumber'],                        // 124
     ['  - Storage: StorageLocationName, StorageUnitNumber, DeployedDate'],                    // 125
     ['  - Service: OpenTickets'],                                                            // 126
     ['  - Calculated: AgeDays, AgeYears, WarrantyStatus (ARRAYFORMULA columns)'],            // 127
@@ -597,11 +596,94 @@ function setupInstructionsSheet(ss) {
     [''],                                                                                   // 305
     ['Data is refreshed daily at 3 AM, so dashboards can refresh on a similar schedule.'],   // 306
     ['Weekly full refresh starts Sunday at 2 AM and may continue in 10-minute batches.'],
-    [''],                                                                                   // 308
-    [''],                                                                                   // 309
-    ['═══════════════════════════════════════════════════════════════════════════════'],      // 310
-    ['SUPPORT'],                                                                             // 311
-    ['═══════════════════════════════════════════════════════════════════════════════'],      // 312
+    [''],
+    [''],
+    ['═══════════════════════════════════════════════════════════════════════════════'],
+    ['iiQ TELEMETRY'],
+    ['═══════════════════════════════════════════════════════════════════════════════'],
+    [''],
+    ['WHO SEES THIS DATA'],
+    [''],
+    ['Telemetry pings are sent only to Incident IQ and are visible only to the'],
+    ['Incident IQ team. Because Incident IQ is the direct vendor of the platform'],
+    ['this sheet connects to, pings are treated as product-usage telemetry from'],
+    ['an iiQ-published tool — not third-party analytics. The data is not shared'],
+    ['with any external analytics provider, ad network, or other vendor, and is'],
+    ['not sold. It is used by iiQ for:'],
+    ['  • Identifying which districts have the sheet projects installed'],
+    ['  • Tracking which script version each install is running (so upgrade'],
+    ['    prompts can be targeted accurately)'],
+    ['  • Understanding approximate API-traffic volume the scripts generate'],
+    ['    against the Incident IQ API'],
+    ['  • Seeing which canonical analytics tabs districts actually use, to'],
+    ['    guide future feature work'],
+    [''],
+    [''],
+    ['EXACTLY WHAT IS CAPTURED'],
+    [''],
+    ['One JSON POST is sent per successful trigger fire (subject to server-side'],
+    ['rate limiting of 5 minutes per install and deduplication of ~6 hours per'],
+    ['install/project/day). Each payload contains exactly these fields and'],
+    ['nothing else:'],
+    [''],
+    ['  Field           | Example value              | What it is'],
+    ['  ----------------|----------------------------|-----------------------------'],
+    ['  schemaVersion   | 1                          | Wire protocol version'],
+    ['  installId       | 6f1a3b9c-...-b82f          | Stable UUID stamped once per'],
+    ['                  |                            | install (Script Properties)'],
+    ['  project         | iiq-assets-to-sheets       | Fixed — identifies the repo'],
+    ['  version         | 1.3.0                      | SCRIPT_VERSION of this copy'],
+    ['  instanceUrl     | demo.incidentiq.com        | Hostname from API_BASE_URL;'],
+    ['                  |                            | no path, query, or port'],
+    ['  installedAt     | 2026-03-01T14:22:10Z       | ISO timestamp of first ping'],
+    ['  scriptTimeZone  | America/Chicago            | From Session.getScriptTimeZone()'],
+    ['  sentAt          | 2026-04-24T09:15:03Z       | Client clock at send'],
+    ['  rowCount        | 4237                       | Number of rows in AssetData'],
+    ['                  |                            | (excluding the header row)'],
+    ['  primarySheet    | AssetData                  | Fixed — names what rowCount'],
+    ['                  |                            | counted'],
+    ['  analyticsSheets | ["FleetSummary",           | The subset of canonical'],
+    ['                  |  "LocationSummary"]        | analytics tab names that are'],
+    ['                  |                            | currently present. Sheets you'],
+    ['                  |                            | rename or add yourself are'],
+    ['                  |                            | never reported.'],
+    [''],
+    [''],
+    ['WHAT IS NEVER SENT'],
+    [''],
+    ['Telemetry does not include any of the following, ever:'],
+    ['  • Asset data (serial numbers, tags, owner names, locations, etc.)'],
+    ['  • Personally identifiable information of students, staff, or admins'],
+    ['  • BEARER_TOKEN or any other API credential'],
+    ['  • The full API_BASE_URL path, query string, or any config value'],
+    ['    other than the TELEMETRY_ENABLED flag itself'],
+    ['  • The contents of any sheet, including Logs or custom sheets you add'],
+    ['  • Any value you type into the Config sheet besides TELEMETRY_ENABLED'],
+    [''],
+    ['The full client-side code that builds and sends the payload lives in'],
+    ['scripts/Telemetry.gs in this spreadsheet\'s Apps Script project — you can'],
+    ['read it in Extensions > Apps Script to verify the field list above.'],
+    [''],
+    [''],
+    ['OPTING OUT'],
+    [''],
+    ['To opt out: set TELEMETRY_ENABLED to FALSE in the Config sheet.'],
+    [''],
+    ['IMPORTANT: Opting out also disables automated polling.'],
+    ['  • Every time-based trigger (Continue, Daily Refresh, Weekly Full Refresh)'],
+    ['    will uninstall itself the next time it fires.'],
+    ['  • Setup Automated Triggers refuses to create new time-based triggers while'],
+    ['    the flag is FALSE.'],
+    ['  • Manual menu actions (Load / Resume, Refresh Changed Assets, analytics'],
+    ['    regeneration, etc.) continue to work normally.'],
+    [''],
+    ['Re-enabling: set TELEMETRY_ENABLED back to TRUE, then run'],
+    ['iiQ Assets > Setup > Setup Automated Triggers to reinstall the triggers.'],
+    [''],
+    [''],
+    ['═══════════════════════════════════════════════════════════════════════════════'],
+    ['SUPPORT'],
+    ['═══════════════════════════════════════════════════════════════════════════════'],
     [''],                                                                                   // 313
     ['GitHub: https://github.com/scopousiiq/iiq-assets-to-sheets'],                          // 314
     ['For issues or feature requests, check the Logs sheet first for error details.'],       // 315
@@ -623,15 +705,22 @@ function setupInstructionsSheet(ss) {
     'MENU REFERENCE',
     'TROUBLESHOOTING',
     'DASHBOARD INTEGRATION',
+    'iiQ TELEMETRY',
     'SUPPORT'
   ]);
   const sectionRanges = [];
   const dividerRanges = [];
+  const monoRanges = [];
 
   content.forEach((row, index) => {
     const value = row[0];
     if (sectionTitles.has(value)) sectionRanges.push('A' + (index + 1));
     if (typeof value === 'string' && /^═+$/.test(value)) dividerRanges.push('A' + (index + 1));
+    // Table rows (any line with 2+ pipes) render correctly only in a monospace
+    // font — without it the column separators don't line up.
+    if (typeof value === 'string' && (value.match(/\|/g) || []).length >= 2) {
+      monoRanges.push('A' + (index + 1));
+    }
   });
 
   if (sectionRanges.length) {
@@ -639,6 +728,9 @@ function setupInstructionsSheet(ss) {
   }
   if (dividerRanges.length) {
     sheet.getRangeList(dividerRanges).setFontColor('#dadce0');
+  }
+  if (monoRanges.length) {
+    sheet.getRangeList(monoRanges).setFontFamily('Roboto Mono');
   }
 
   sheet.setFrozenRows(1);
@@ -660,8 +752,8 @@ function setupLocationSummarySheet(ss) {
     '  total, BYROW(locs, LAMBDA(loc, COUNTIF(AssetData!I:I, loc))),\n' +
     '  active, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!M:M, "<>Retired"))),\n' +
     '  retired, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!M:M, "Retired"))),\n' +
-    '  warr_exp, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expired"))),\n' +
-    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!I:I, loc), 0))),\n' +
+    '  warr_exp, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AF:AF, "Expired"))),\n' +
+    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AE:AE, AssetData!I:I, loc), 0))),\n' +
     '  assigned, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!K:K, "<>"))),\n' +
     '  students, BYROW(locs, LAMBDA(loc, IFERROR(INDEX(FILTER(LocationEnrollment!D:D, LocationEnrollment!B:B=loc), 1), 0))),\n' +
     '  with_dev, BYROW(locs, LAMBDA(loc, IFERROR(INDEX(FILTER(LocationEnrollment!E:E, LocationEnrollment!B:B=loc), 1), 0))),\n' +
@@ -687,7 +779,7 @@ function setupModelBreakdownSheet(ss) {
     '  total, BYROW(models, LAMBDA(m, COUNTIF(AssetData!E:E, m))),\n' +
     '  active, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!E:E, m, AssetData!M:M, "<>Retired"))),\n' +
     '  retired, BYROW(models, LAMBDA(m, COUNTIFS(AssetData!E:E, m, AssetData!M:M, "Retired"))),\n' +
-    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!E:E, m), 0))),\n' +
+    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AE:AE, AssetData!E:E, m), 0))),\n' +
     '  IFERROR(SORT(HSTACK(models, mfr, total, active, retired, avg_age), 3, FALSE),\n' +
     '    HSTACK(models, mfr, total, active, retired, avg_age))\n' +
     ')';
@@ -702,13 +794,13 @@ function setupBudgetPlanningSheet(ss) {
 
   const formula = '=LET(\n' +
     '  locs, UNIQUE(FILTER(AssetData!I2:I, AssetData!I2:I<>"")),\n' +
-    '  warr_expired, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expired", AssetData!M:M, "<>Retired"))),\n' +
-    '  warr_expiring, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expiring", AssetData!M:M, "<>Retired"))),\n' +
-    '  old_devices, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AC:AC, ">="&4, AssetData!M:M, "<>Retired"))),\n' +
+    '  warr_expired, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AF:AF, "Expired", AssetData!M:M, "<>Retired"))),\n' +
+    '  warr_expiring, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AF:AF, "Expiring", AssetData!M:M, "<>Retired"))),\n' +
+    '  old_devices, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!AE:AE, ">="&4, AssetData!M:M, "<>Retired"))),\n' +
     '  avg_price, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!P:P, AssetData!I:I, loc, AssetData!P:P, ">0"), 0))),\n' +
     '  est_cost, BYROW(locs, LAMBDA(loc, IFERROR(\n' +
-    '    (COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expired", AssetData!M:M, "<>Retired")\n' +
-    '     + COUNTIFS(AssetData!I:I, loc, AssetData!AD:AD, "Expiring", AssetData!M:M, "<>Retired"))\n' +
+    '    (COUNTIFS(AssetData!I:I, loc, AssetData!AF:AF, "Expired", AssetData!M:M, "<>Retired")\n' +
+    '     + COUNTIFS(AssetData!I:I, loc, AssetData!AF:AF, "Expiring", AssetData!M:M, "<>Retired"))\n' +
     '    * AVERAGEIFS(AssetData!P:P, AssetData!I:I, loc, AssetData!P:P, ">0"), 0))),\n' +
     '  IFERROR(SORT(HSTACK(locs, warr_expired, warr_expiring, old_devices, avg_price, est_cost), 6, FALSE),\n' +
     '    HSTACK(locs, warr_expired, warr_expiring, old_devices, avg_price, est_cost))\n' +
@@ -735,15 +827,15 @@ function setupFleetSummarySheet(ss) {
     ['Avg Purchase Price', '=IFERROR(AVERAGEIF(AssetData!P2:P,">0"),0)'],
     ['', ''],
     ['--- Fleet Age ---', ''],
-    ['Avg Age (Years)', '=IFERROR(AVERAGE(AssetData!AC2:AC),0)'],
-    ['Active Devices > 4 Years', '=COUNTIFS(AssetData!AC2:AC,">="&4,AssetData!M2:M,"<>Retired")'],
+    ['Avg Age (Years)', '=IFERROR(AVERAGE(AssetData!AE2:AE),0)'],
+    ['Active Devices > 4 Years', '=COUNTIFS(AssetData!AE2:AE,">="&4,AssetData!M2:M,"<>Retired")'],
     ['', ''],
     ['--- Warranty ---', ''],
-    ['Warranty Active', '=COUNTIF(AssetData!AD2:AD,"Active")'],
-    ['Warranty Expiring (< 90 days)', '=COUNTIF(AssetData!AD2:AD,"Expiring")'],
-    ['Warranty Expired', '=COUNTIF(AssetData!AD2:AD,"Expired")'],
-    ['No Warranty Data', '=COUNTIF(AssetData!AD2:AD,"None")'],
-    ['Warranty Coverage Rate', '=IFERROR((COUNTIF(AssetData!AD2:AD,"Active")+COUNTIF(AssetData!AD2:AD,"Expiring"))/(COUNTA(AssetData!A2:A)-COUNTIF(AssetData!AD2:AD,"None")),0)'],
+    ['Warranty Active', '=COUNTIF(AssetData!AF2:AF,"Active")'],
+    ['Warranty Expiring (< 90 days)', '=COUNTIF(AssetData!AF2:AF,"Expiring")'],
+    ['Warranty Expired', '=COUNTIF(AssetData!AF2:AF,"Expired")'],
+    ['No Warranty Data', '=COUNTIF(AssetData!AF2:AF,"None")'],
+    ['Warranty Coverage Rate', '=IFERROR((COUNTIF(AssetData!AF2:AF,"Active")+COUNTIF(AssetData!AF2:AF,"Expiring"))/(COUNTA(AssetData!A2:A)-COUNTIF(AssetData!AF2:AF,"None")),0)'],
     ['', ''],
     ['--- Service Load ---', ''],
     ['Total Open Tickets', '=SUM(AssetData!Y2:Y)'],
@@ -791,7 +883,7 @@ function setupAgingAnalysisSheet(ss) {
   const yr = 'IFERROR(YEAR(IF(AssetData!N2:N<>"", AssetData!N2:N, AssetData!Q2:Q)), 0)';
   const formula = '=LET(\n' +
     '  all_status, AssetData!M2:M,\n' +
-    '  all_warranty, AssetData!AD2:AD,\n' +
+    '  all_warranty, AssetData!AF2:AF,\n' +
     '  all_tickets, AssetData!Y2:Y,\n' +
     '  all_price, AssetData!P2:P,\n' +
     '  years, SORT(UNIQUE(FILTER(' + yr + ', ' + yr + '>0)), 1, TRUE),\n' +
@@ -820,7 +912,7 @@ function setupServiceImpactSheet(ss) {
     '  dev_count, BYROW(models, LAMBDA(m, COUNTIF(AssetData!E:E, m))),\n' +
     '  tot_tickets, BYROW(models, LAMBDA(m, SUMIF(AssetData!E:E, m, AssetData!Y:Y))),\n' +
     '  tix_per, BYROW(models, LAMBDA(m, IFERROR(SUMIF(AssetData!E:E, m, AssetData!Y:Y)/COUNTIF(AssetData!E:E, m), 0))),\n' +
-    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AC:AC, AssetData!E:E, m), 0))),\n' +
+    '  avg_age, BYROW(models, LAMBDA(m, IFERROR(AVERAGEIFS(AssetData!AE:AE, AssetData!E:E, m), 0))),\n' +
     '  IFERROR(SORT(HSTACK(models, mfr, dev_count, tot_tickets, tix_per, avg_age), 5, FALSE),\n' +
     '    HSTACK(models, mfr, dev_count, tot_tickets, tix_per, avg_age))\n' +
     ')';

@@ -29,6 +29,7 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | `OptionalAnalytics.gs` | Optional (non-default) analytics sheet setup functions |
 | `Menu.gs` | "iiQ Assets" menu, UI entry points, category submenus |
 | `Triggers.gs` | Time-driven functions, trigger management |
+| `Telemetry.gs` | Canonical telemetry client (ping, runtime gate, install gate) — see `iiq-sheets-telemetry/` for the shared source |
 
 **Key Dependencies:**
 - `ApiClient.gs` → `Config.gs`
@@ -42,7 +43,7 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 |-------|------|---------|
 | Instructions | Static | Setup and usage guide |
 | Config | Manual | API settings, progress tracking |
-| AssetData | Data | Main asset data (30 columns: 27 API + 3 formula) |
+| AssetData | Data | Main asset data (32 columns: 29 API + 3 formula) |
 | Locations | Reference | Location directory |
 | StatusTypes | Reference | Asset status type directory |
 | Logs | Data | Operation logs |
@@ -151,7 +152,7 @@ iiQ Assets
 
 **Regeneration:** Analytics setup functions use `getOrCreateSheet` -- on regeneration, only the formula is refreshed (no delete/create/reformat). Formulas are live and auto-recalculate when AssetData changes; regeneration is only needed after code updates.
 
-## AssetData Column Layout (30 columns)
+## AssetData Column Layout (32 columns)
 
 | Col | Header | Source |
 |-----|--------|--------|
@@ -182,9 +183,11 @@ iiQ Assets
 | Y | OpenTickets | API (OpenTicketCount) |
 | Z | OwnerFirstName | API (Owner.FirstName) |
 | AA | OwnerLastName | API (Owner.LastName) |
-| AB | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
-| AC | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
-| AD | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
+| AB | OwnerEmail | API (Owner.Email) |
+| AC | OwnerSchoolIdNumber | API (Owner.SchoolIdNumber) |
+| AD | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
+| AE | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
+| AF | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
 
 ### Analytics Formula Column Reference
 
@@ -194,12 +197,14 @@ iiQ Assets
 | Model | **E (ModelName)** |
 | Manufacturer | **F (ManufacturerName)** |
 | Status | **M (StatusName)** |
-| Warranty Status | **AD (WarrantyStatus)** |
-| Age (Years) | **AC (AgeYears)** |
+| Warranty Status | **AF (WarrantyStatus)** |
+| Age (Years) | **AE (AgeYears)** |
 | Open Tickets | **Y (OpenTickets)** |
 | Owner Full Name | **L (OwnerFullName)** |
 | Owner First Name | **Z (OwnerFirstName)** |
 | Owner Last Name | **AA (OwnerLastName)** |
+| Owner Email | **AB (OwnerEmail)** |
+| Owner School ID | **AC (OwnerSchoolIdNumber)** |
 
 ## API Endpoints Used
 
@@ -237,13 +242,19 @@ Version Information (auto-managed):
 
 **Version Check:** Scripts check GitHub daily for newer versions (piggybacked on `triggerDataContinue` — only fires if `isVersionCheckStale()` returns true, i.e. last check was >24h ago). Fetches `version.json` from the repo's `main` branch via raw.githubusercontent.com. Results land in the Config sheet with color coding — no pop-up dialogs. Manual check via **iiQ Assets > Setup > Check for Updates**. The version-check code fails silently if GitHub is unreachable — it must never break data operations.
 
-Telemetry (on by default for new installs):
-- `TELEMETRY_ENABLED`: `TRUE` by default on new Setup Spreadsheet runs. Set to `FALSE` to disable.
-- `TELEMETRY_LAST_SENT`: ISO timestamp of last successful ping.
+Telemetry (on by default for new installs — required for automated polling):
+- `TELEMETRY_ENABLED`: `TRUE` by default on new Setup Spreadsheet runs. Set to `FALSE` to opt out of telemetry **and** disable automated polling.
 
 The endpoint URL is a maintainer decision, not a district setting — it lives as a hardcoded `TELEMETRY_URL` constant at the top of `Config.gs`. Blank until the server is deployed; `reportTelemetry()` is a no-op while it's blank.
 
-**Telemetry:** When enabled, `triggerDataContinue` POSTs a small JSON payload once per 24h to `TELEMETRY_URL` so the project maintainer can see install counts, version distribution, installed analytics sheets, and approximate API-traffic volume. Payload: `{installId, project, version, districtHash, assetCount, analyticsSheets, triggersEnabled, sentAt}`. No PII is sent — `districtHash` is SHA-256 of `API_BASE_URL`, `installId` is a stable UUID in `PropertiesService`. All failures are silent. Existing pre-1.1.0 installs don't auto-enable on upgrade — they have no `TELEMETRY_ENABLED` row, which is read as disabled. Server lives in the sibling workspace directory `iiq-sheets-telemetry/`.
+**Telemetry wiring (v1.3.0+):** All logic lives in `scripts/Telemetry.gs`, copied from the shared client at `iiq-sheets-telemetry/client/Telemetry.gs`. Three entry points:
+- `reportTelemetry()` — called at the tail of every trigger handler. Posts a JSON payload to `TELEMETRY_URL`. Self-gates on `TELEMETRY_URL` / `TELEMETRY_ENABLED` / trigger presence / `API_BASE_URL`. Best-effort; never throws.
+- `enforceTelemetryGate()` — called as the first line of every trigger handler. If `TELEMETRY_ENABLED != TRUE`, uninstalls every time-based (CLOCK) trigger and returns `false`. Edit / open triggers (e.g. IndividualLookup) are preserved.
+- `assertTelemetryEnabledForTriggers()` — called at the top of `setupAutomatedTriggers()`. Throws a user-readable error (surfaced in a dialog) if telemetry is off, so Setup Automated Triggers installs nothing in that state.
+
+Payload (schemaVersion 1): `{schemaVersion, installId, project, version, instanceUrl, installedAt, scriptTimeZone, sentAt, rowCount, primarySheet, analyticsSheets}`. `instanceUrl` is the hostname portion of `API_BASE_URL` (e.g. `demo.incidentiq.com`) — iiQ owns the customer relationship, so direct identification is the correct model. No PII, no asset content, no credentials. `installId` is a stable UUID in `PropertiesService` under `TELEMETRY_INSTALL_ID`; `TELEMETRY_INSTALLED_AT` is stamped on first telemetry run. Server-side rate limiting (5 min) and dedupe (~6 h per install/project/day) replace client-side throttling — no `TELEMETRY_LAST_SENT` row.
+
+Server lives in the sibling workspace directory `iiq-sheets-telemetry/`.
 
 ## Data Loading
 
@@ -258,7 +269,7 @@ The endpoint URL is a maintainer decision, not a district setting — it lives a
 - Appends new assets not previously seen
 - Runs daily at 3 AM via trigger, also available on-demand from menu
 
-**After loading:** `applyAssetFormulas()` adds ARRAYFORMULA calculated columns Z-AB.
+**After loading:** `applyAssetFormulas()` adds ARRAYFORMULA calculated columns AD-AF.
 
 ## Initial Setup
 

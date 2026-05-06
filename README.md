@@ -27,7 +27,7 @@ In the **Config** sheet, enter your Incident IQ credentials:
 | Setting | Value | Where to Find It |
 |---------|-------|------------------|
 | `API_BASE_URL` | `https://yourdistrict.incidentiq.com` | Your iiQ URL (the `/api` is added automatically) |
-| `BEARER_TOKEN` | Your API token | iiQ Admin > Integrations > API |
+| `BEARER_TOKEN` | Your API token | iiQ Admin > Developer Tools |
 | `SITE_ID` | Your site UUID (optional) | Only needed for multi-site districts |
 
 Then run **iiQ Assets > Setup > Verify Configuration** to confirm everything connects.
@@ -62,7 +62,7 @@ Two Config keys control the ReplacementPlanning and ReplacementForecast sheets:
 ## What You Get
 
 **Data loaded automatically from your iiQ instance:**
-- Complete asset inventory (30 columns) — identity, device model, location, owner (full name, first, last), status, purchase info, storage, tickets, and more
+- Complete asset inventory (32 columns) — identity, device model, location, owner (full name, first, last, email, school ID), status, purchase info, storage, tickets, and more
 - Location directory and asset status types
 - Student enrollment and device coverage per school (optional)
 
@@ -169,7 +169,7 @@ Default sheets (★) are created by **Setup Spreadsheet**. All sheets — defaul
 | Key | Required | Description |
 |-----|----------|-------------|
 | `API_BASE_URL` | Yes | Your iiQ instance URL (e.g., `https://yourdistrict.incidentiq.com`) |
-| `BEARER_TOKEN` | Yes | API token from Admin > Integrations > API |
+| `BEARER_TOKEN` | Yes | API token from Admin > Developer Tools |
 | `SITE_ID` | No | Site UUID (only for multi-site instances) |
 | `PAGE_SIZE` | No | Records per API call (default 100) |
 | `THROTTLE_MS` | No | Delay between requests in ms (default 1000) |

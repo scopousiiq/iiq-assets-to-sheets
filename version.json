@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0",
-  "released": "2026-04-24",
+  "version": "1.4.0",
+  "released": "2026-05-06",
   "releaseUrl": "https://github.com/scopousiiq/iiq-assets-to-sheets/releases/latest",
-  "message": "Owner name split: L renamed OwnerName → OwnerFullName, new Z=OwnerFirstName, AA=OwnerLastName. Formula cols shifted to AB/AC/AD. Re-run Setup Spreadsheet or Full Reload to repopulate existing data."
+  "message": "Two new owner fields added: OwnerEmail (AB) and OwnerSchoolIdNumber (AC). Formula columns shifted: AgeDays→AD, AgeYears→AE, WarrantyStatus→AF. Requires Setup Spreadsheet (full reset) to apply new headers and layout."
 }
