@@ -8,6 +8,11 @@
 // =============================================================================
 
 function setupAutomatedTriggers() {
+  // Policy: automated polling requires telemetry opt-in. Throws a user-
+  // readable error (surfaced in a dialog for menu callers) if TELEMETRY_ENABLED
+  // != TRUE in the Config sheet.
+  assertTelemetryEnabledForTriggers();
+
   removeAllProjectTriggers();
 
   // Continue any in-progress initial loading (every 10 min)
@@ -45,6 +50,11 @@ function removeAllProjectTriggers() {
  * Once initial load is complete, this trigger is a no-op.
  */
 function triggerDataContinue() {
+  // Policy gate: if TELEMETRY_ENABLED != TRUE, uninstalls all time-based
+  // triggers and returns without doing work. Automated polling is contingent
+  // on telemetry opt-in.
+  if (!enforceTelemetryGate()) return;
+
   const lock = tryAcquireScriptLock();
   if (!lock) {
     logOperation('Trigger', 'SKIP', 'triggerDataContinue - another operation in progress');
@@ -89,14 +99,14 @@ function triggerDataContinue() {
     try {
       if (isVersionCheckStale()) checkForUpdates();
     } catch (e) { /* swallow — version check is non-critical */ }
-
-    // Daily telemetry ping (opt-in via Config). Failures are silent by design.
-    try {
-      if (isTelemetryStale()) reportTelemetry();
-    } catch (e) { /* swallow — telemetry is non-critical */ }
   } finally {
     releaseScriptLock(lock);
   }
+
+  // Tail-end telemetry ping. reportTelemetry() self-gates on TELEMETRY_URL,
+  // TELEMETRY_ENABLED, trigger presence, and API_BASE_URL; server-side dedupe
+  // limits it to one row per install per ~6h window.
+  reportTelemetry();
 }
 
 /**
@@ -104,6 +114,8 @@ function triggerDataContinue() {
  * Reapplies formulas after refresh to cover new rows.
  */
 function triggerDailyRefresh() {
+  if (!enforceTelemetryGate()) return;
+
   const lock = tryAcquireScriptLock();
   if (!lock) {
     logOperation('Trigger', 'SKIP', 'triggerDailyRefresh - another operation in progress');
@@ -128,12 +140,16 @@ function triggerDailyRefresh() {
   } finally {
     releaseScriptLock(lock);
   }
+
+  reportTelemetry();
 }
 
 /**
  * Weekly full refresh: clear data and reload everything.
  */
 function triggerWeeklyFullRefresh() {
+  if (!enforceTelemetryGate()) return;
+
   const lock = tryAcquireScriptLock();
   if (!lock) {
     logOperation('Trigger', 'SKIP', 'triggerWeeklyFullRefresh - another operation in progress');
@@ -170,4 +186,6 @@ function triggerWeeklyFullRefresh() {
   } finally {
     releaseScriptLock(lock);
   }
+
+  reportTelemetry();
 }

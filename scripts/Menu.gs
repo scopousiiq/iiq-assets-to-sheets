@@ -15,6 +15,8 @@ function onOpen() {
       .addItem('Remove Automated Triggers', 'menuRemoveTriggers')
       .addSeparator()
       .addItem('Check for Updates', 'menuCheckForUpdates')
+      .addSeparator()
+      .addItem('Send Telemetry Ping (Debug)', 'menuSendTelemetryPing')
     )
     .addSeparator()
     .addSubMenu(ui.createMenu('Load Reference Data')

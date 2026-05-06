@@ -4,15 +4,18 @@
  */
 
 /** Current script version — update when releasing new versions */
-const SCRIPT_VERSION = '1.2.0';
+const SCRIPT_VERSION = '1.3.0';
 
 /**
  * Telemetry endpoint — the deployed iiq-sheets-telemetry Web App /exec URL.
- * Hardcoded here (not in the Config sheet) because this is a maintainer
- * decision, not a per-district setting. Blank until the server is deployed;
- * reportTelemetry() is a no-op while it's blank.
+ * Maintainer-managed: hardcoded here, not exposed in the Config sheet.
+ * Empty string disables telemetry entirely for this build — reportTelemetry()
+ * is a no-op, and (because automated polling requires telemetry opt-in)
+ * districts also can't install time-based triggers until this is filled in.
+ *
+ * All telemetry logic lives in Telemetry.gs. This file only declares the URL.
  */
-const TELEMETRY_URL = '';
+const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbyaPAkUWjAqkYgX01WhJlNGNQuZACDtQ_6zNVUEbHD73RDaM5uWq7IwwqwD54mP9qXYZA/exec';
 
 // =============================================================================
 // CONFIG READER
@@ -370,145 +373,6 @@ function menuCheckForUpdates() {
     'Version Check', 5);
 }
 
-// =============================================================================
-// TELEMETRY (on by default for new installs — opt-out via TELEMETRY_ENABLED)
-// =============================================================================
-//
-// When TELEMETRY_ENABLED is TRUE and TELEMETRY_URL is set, the daily
-// triggerDataContinue run POSTs a small JSON payload to the configured Web App
-// endpoint so the project maintainer can see install counts, version
-// distribution, and API-traffic patterns. No PII is sent — the district is
-// identified by a SHA-256 hash of API_BASE_URL plus a locally-generated UUID.
-//
-// Setup Spreadsheet writes TELEMETRY_ENABLED=TRUE for new installs. Existing
-// pre-1.1.0 installs that upgrade without re-running Setup Spreadsheet will
-// have no TELEMETRY_ENABLED row — reportTelemetry() reads that as FALSE and
-// skips the ping, so the upgrade path doesn't auto-enable telemetry.
-//
-// All failures are silent.
-
-/**
- * Telemetry ping. Honors TELEMETRY_ENABLED Config row. Fails silently.
- */
-function reportTelemetry() {
-  try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
-    if (!sheet) return;
-    const raw = readConfigMap(sheet);
-
-    const enabled = String(raw.TELEMETRY_ENABLED || '').toUpperCase() === 'TRUE';
-    if (!enabled) return;
-
-    if (!TELEMETRY_URL || TELEMETRY_URL.indexOf('http') !== 0) return;
-
-    const baseUrl = raw.API_BASE_URL || '';
-    const districtHash = baseUrl ? sha256Hex(baseUrl.replace(/\/+$/, '').toLowerCase()) : '';
-    const installId = getOrCreateInstallId();
-    const assetCount = countDataRows('AssetData');
-    const analyticsSheets = listInstalledAnalyticsSheets();
-    const triggerCount = ScriptApp.getProjectTriggers().length;
-
-    const payload = {
-      installId: installId,
-      project: 'iiq-assets-to-sheets',
-      version: SCRIPT_VERSION,
-      districtHash: districtHash,
-      assetCount: assetCount,
-      analyticsSheets: analyticsSheets,
-      triggersEnabled: triggerCount,
-      sentAt: new Date().toISOString()
-    };
-
-    const response = UrlFetchApp.fetch(TELEMETRY_URL, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true,
-      followRedirects: true
-    });
-
-    const code = response.getResponseCode();
-    if (code >= 200 && code < 300) {
-      setConfigValue('TELEMETRY_LAST_SENT', new Date().toISOString());
-      logOperation('Telemetry', 'OK', `Ping accepted (${code}) — ${analyticsSheets.length} analytics sheets, ${assetCount} assets`);
-    } else {
-      logOperation('Telemetry', 'WARN', `Endpoint returned ${code}`);
-    }
-  } catch (e) {
-    logOperation('Telemetry', 'ERROR', 'Ping failed: ' + e.message);
-  }
-}
-
-/**
- * True when telemetry hasn't been sent in the last 24 hours.
- */
-function isTelemetryStale() {
-  try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
-    if (!sheet) return true;
-    const raw = readConfigMap(sheet);
-    const last = raw.TELEMETRY_LAST_SENT;
-    if (!last) return true;
-    const t = new Date(last);
-    if (isNaN(t.getTime())) return true;
-    return (Date.now() - t.getTime()) / 3600000 > 24;
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
- * Stable per-install UUID. Stored in Script Properties so it survives sheet
- * edits and Full Reload, but is distinct per Apps Script project (i.e. per
- * spreadsheet copy).
- */
-function getOrCreateInstallId() {
-  const props = PropertiesService.getScriptProperties();
-  let id = props.getProperty('INSTALL_ID');
-  if (!id) {
-    id = Utilities.getUuid();
-    props.setProperty('INSTALL_ID', id);
-  }
-  return id;
-}
-
-function sha256Hex(str) {
-  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, str, Utilities.Charset.UTF_8);
-  let hex = '';
-  for (let i = 0; i < bytes.length; i++) {
-    const b = bytes[i] < 0 ? bytes[i] + 256 : bytes[i];
-    hex += (b < 16 ? '0' : '') + b.toString(16);
-  }
-  return hex;
-}
-
-function readConfigMap(sheet) {
-  const data = sheet.getDataRange().getValues();
-  const map = {};
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0]) map[data[i][0]] = data[i][1];
-  }
-  return map;
-}
-
-function countDataRows(name) {
-  const s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!s) return 0;
-  const last = s.getLastRow();
-  return last > 1 ? last - 1 : 0;
-}
-
-function listInstalledAnalyticsSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  // Canonical set of analytics sheet names — only report ones present.
-  const known = [
-    'FleetSummary', 'LocationSummary', 'ModelBreakdown', 'AgingAnalysis',
-    'BudgetPlanning', 'ServiceImpact', 'AssignmentOverview', 'StatusOverview',
-    'DeviceReadiness', 'SpareAssets', 'LostStolenRate', 'ModelFragmentation',
-    'UnassignedInventory', 'BreakRate', 'HighTicketLocations',
-    'ReplacementPlanning', 'ReplacementForecast', 'WarrantyTimeline',
-    'DeviceLifecycle', 'LocationModelBreakdown', 'LocationModelFiltered',
-    'CategoryBreakdown', 'ManufacturerSummary', 'IndividualLookup'
-  ];
-  return known.filter(n => ss.getSheetByName(n) != null);
-}
+// Telemetry — see Telemetry.gs for reportTelemetry(), enforceTelemetryGate(),
+// and assertTelemetryEnabledForTriggers(). Config.gs only declares the
+// TELEMETRY_URL constant at the top of this file.
