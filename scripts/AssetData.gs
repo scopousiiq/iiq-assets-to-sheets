@@ -4,7 +4,7 @@
  * Loads assets via paginated search with checkpoint resume.
  * Supports incremental refresh via ModifiedDate filter.
  *
- * Column layout (32 columns, A-AF):
+ * Column layout (33 columns, A-AG):
  *   A  AssetId            K  OwnerId
  *   B  AssetTag           L  OwnerFullName
  *   C  Name               M  StatusName
@@ -24,9 +24,10 @@
  *                         AA OwnerLastName
  *                         AB OwnerEmail
  *                         AC OwnerSchoolIdNumber
- *                         AD AgeDays (formula)
- *                         AE AgeYears (formula)
- *                         AF WarrantyStatus (formula)
+ *                         AD LocationRoomName
+ *                         AE AgeDays (formula)
+ *                         AF AgeYears (formula)
+ *                         AG WarrantyStatus (formula)
  */
 
 const ASSET_HEADERS = [
@@ -41,10 +42,11 @@ const ASSET_HEADERS = [
   'OpenTickets',
   'OwnerFirstName', 'OwnerLastName',
   'OwnerEmail', 'OwnerSchoolIdNumber',
+  'LocationRoomName',
   'AgeDays', 'AgeYears', 'WarrantyStatus'
 ];
-const ASSET_DATA_COLS = 29;  // Columns A-AC (API data)
-const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 32 (includes formula columns)
+const ASSET_DATA_COLS = 30;  // Columns A-AD (API data)
+const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 33 (includes formula columns)
 const MAX_RUNTIME_MS = 5.5 * 60 * 1000;
 
 // =============================================================================
@@ -218,7 +220,7 @@ function refreshAssetData(showUI) {
 
 /**
  * Extract one row of asset data from an API response item.
- * Returns array of ASSET_DATA_COLS values (columns A-AC).
+ * Returns array of ASSET_DATA_COLS values (columns A-AD).
  */
 function extractAssetRow(asset) {
   const model = asset.Model || {};
@@ -260,6 +262,8 @@ function extractAssetRow(asset) {
     owner.LastName || '',
     owner.Email || '',
     owner.SchoolIdNumber || '',
+    // Location room
+    asset.LocationRoom?.Name || '',
   ];
 }
 

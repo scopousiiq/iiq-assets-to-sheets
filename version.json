@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
-  "released": "2026-05-06",
+  "version": "1.4.1",
+  "released": "2026-05-07",
   "releaseUrl": "https://github.com/scopousiiq/iiq-assets-to-sheets/releases/latest",
-  "message": "Two new owner fields added: OwnerEmail (AB) and OwnerSchoolIdNumber (AC). Formula columns shifted: AgeDays→AD, AgeYears→AE, WarrantyStatus→AF. Requires Setup Spreadsheet (full reset) to apply new headers and layout."
+  "message": "New column AD: LocationRoomName (LocationRoom.Name). Formula columns shifted: AgeDays→AE, AgeYears→AF, WarrantyStatus→AG. Requires Setup Spreadsheet (full reset) to apply new headers and layout."
 }

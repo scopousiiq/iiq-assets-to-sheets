@@ -31,7 +31,7 @@ Create a new Google Sheet. The **Setup Spreadsheet** function creates all requir
 |------------|---------|
 | `Instructions` | Setup and usage guide (first tab) |
 | `Config` | API credentials and settings |
-| `AssetData` | Main asset inventory (32 columns: 29 API + 3 calculated) |
+| `AssetData` | Main asset inventory (33 columns: 30 API + 3 calculated) |
 | `Locations` | Location directory |
 | `StatusTypes` | Asset status types |
 | `Logs` | Operation logs |
@@ -136,9 +136,9 @@ Deleted assets in iiQ are automatically excluded by the API — they are never d
 
 ## Part 3: AssetData Column Layout
 
-The AssetData sheet has 32 columns: 29 from the API and 3 calculated by ARRAYFORMULA.
+The AssetData sheet has 33 columns: 30 from the API and 3 calculated by ARRAYFORMULA.
 
-### API Columns (A-AC)
+### API Columns (A-AD)
 
 | Col | Header | API Source |
 |-----|--------|------------|
@@ -171,16 +171,17 @@ The AssetData sheet has 32 columns: 29 from the API and 3 calculated by ARRAYFOR
 | AA | OwnerLastName | `Owner.LastName` |
 | AB | OwnerEmail | `Owner.Email` |
 | AC | OwnerSchoolIdNumber | `Owner.SchoolIdNumber` |
+| AD | LocationRoomName | `LocationRoom.Name` |
 
-### Calculated Columns (AD-AF)
+### Calculated Columns (AE-AG)
 
 These are set as ARRAYFORMULAs in row 2 and spill down automatically:
 
 | Col | Header | Formula Logic |
 |-----|--------|---------------|
-| AD | AgeDays | `TODAY() - PurchasedDate` (falls back to CreatedDate if empty) |
-| AE | AgeYears | `AgeDays / 365.25` |
-| AF | WarrantyStatus | "Active" / "Expiring" (< 90 days) / "Expired" / "None" |
+| AE | AgeDays | `TODAY() - PurchasedDate` (falls back to CreatedDate if empty) |
+| AF | AgeYears | `AgeDays / 365.25` |
+| AG | WarrantyStatus | "Active" / "Expiring" (< 90 days) / "Expired" / "None" |
 
 **Note on device age:** If PurchasedDate is empty (common when districts don't track purchases in iiQ), CreatedDate is used as a fallback. CreatedDate is when the asset record was added to iiQ — a reasonable proxy for device age. All analytics sheets follow this same logic.
 

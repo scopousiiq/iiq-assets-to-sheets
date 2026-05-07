@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 ---
 
+## v1.4.1 — Location room name (2026-05-07)
+
+### Changed
+- **AssetData column layout** (30 API cols + 3 formula cols = 33 total; was 29 + 3 = 32):
+  - `AD` (new) — `LocationRoomName` from `LocationRoom.Name`.
+  - Formula columns shifted by 1: `AgeDays` is now `AE` (was `AD`), `AgeYears` is now `AF` (was `AE`), `WarrantyStatus` is now `AG` (was `AF`).
+- All analytics formulas updated accordingly (`AE:AE` → `AF:AF`, `AF:AF` → `AG:AG`, etc.).
+
+### Upgrade Notes
+1. **Save your `BEARER_TOKEN`** from the Config sheet before proceeding.
+2. Remove automated triggers: **iiQ Assets > Setup > Remove Automated Triggers**.
+3. Update all `.gs` files from the `scripts/` directory.
+4. Run **iiQ Assets > Setup > Setup Spreadsheet** (destructive: recreates all sheets with the 33-column layout and correct headers).
+5. Paste your `BEARER_TOKEN` back into the Config sheet.
+6. Run **iiQ Assets > Asset Data > Full Reload** to repopulate AssetData in the new 33-column layout.
+7. Run **iiQ Assets > Setup > Setup Automated Triggers** to restore automation.
+
+---
+
 ## v1.4.0 — Owner email and school ID fields (2026-05-06)
 
 ### Changed

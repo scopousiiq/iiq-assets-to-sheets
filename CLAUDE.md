@@ -43,7 +43,7 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 |-------|------|---------|
 | Instructions | Static | Setup and usage guide |
 | Config | Manual | API settings, progress tracking |
-| AssetData | Data | Main asset data (32 columns: 29 API + 3 formula) |
+| AssetData | Data | Main asset data (33 columns: 30 API + 3 formula) |
 | Locations | Reference | Location directory |
 | StatusTypes | Reference | Asset status type directory |
 | Logs | Data | Operation logs |
@@ -152,7 +152,7 @@ iiQ Assets
 
 **Regeneration:** Analytics setup functions use `getOrCreateSheet` -- on regeneration, only the formula is refreshed (no delete/create/reformat). Formulas are live and auto-recalculate when AssetData changes; regeneration is only needed after code updates.
 
-## AssetData Column Layout (32 columns)
+## AssetData Column Layout (33 columns)
 
 | Col | Header | Source |
 |-----|--------|--------|
@@ -185,9 +185,10 @@ iiQ Assets
 | AA | OwnerLastName | API (Owner.LastName) |
 | AB | OwnerEmail | API (Owner.Email) |
 | AC | OwnerSchoolIdNumber | API (Owner.SchoolIdNumber) |
-| AD | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
-| AE | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
-| AF | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
+| AD | LocationRoomName | API (LocationRoom.Name) |
+| AE | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
+| AF | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
+| AG | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
 
 ### Analytics Formula Column Reference
 
@@ -197,8 +198,9 @@ iiQ Assets
 | Model | **E (ModelName)** |
 | Manufacturer | **F (ManufacturerName)** |
 | Status | **M (StatusName)** |
-| Warranty Status | **AF (WarrantyStatus)** |
-| Age (Years) | **AE (AgeYears)** |
+| Warranty Status | **AG (WarrantyStatus)** |
+| Age (Years) | **AF (AgeYears)** |
+| Location Room Name | **AD (LocationRoomName)** |
 | Open Tickets | **Y (OpenTickets)** |
 | Owner Full Name | **L (OwnerFullName)** |
 | Owner First Name | **Z (OwnerFirstName)** |
@@ -269,7 +271,7 @@ Server lives in the sibling workspace directory `iiq-sheets-telemetry/`.
 - Appends new assets not previously seen
 - Runs daily at 3 AM via trigger, also available on-demand from menu
 
-**After loading:** `applyAssetFormulas()` adds ARRAYFORMULA calculated columns AD-AF.
+**After loading:** `applyAssetFormulas()` adds ARRAYFORMULA calculated columns AE-AG.
 
 ## Initial Setup
 
