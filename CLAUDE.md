@@ -30,6 +30,9 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | `Menu.gs` | "iiQ Assets" menu, UI entry points, category submenus |
 | `Triggers.gs` | Time-driven functions, trigger management |
 | `Telemetry.gs` | Canonical telemetry client (ping, runtime gate, install gate) — see `iiq-sheets-telemetry/` for the shared source |
+| `Dashboard.gs` | Web-app entry point (`doGet`), registry-driven `getDashboardData()`, `showDashboardUrl` menu handler |
+| `ChartRegistry.gs` | Declarative sheet→chart(s) map — register new analytics sheets here or the dashboard won't discover them |
+| `DashboardApp.html` | Full-page tabbed dashboard frontend (Chart.js 4.4.1 via CDN) |
 
 **Key Dependencies:**
 - `ApiClient.gs` → `Config.gs`
@@ -89,10 +92,11 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | CategoryBreakdown | "What types of devices do we have? Chromebooks vs laptops vs tablets?" |
 | ManufacturerSummary | "Which vendors are we invested in?" |
 
-**People**
+**Lookups**
 | Sheet | Question Answered |
 |-------|-------------------|
 | IndividualLookup | "What's this person's device assignment history?" (dropdown-driven, live API fetch against `/users/{userId}/activities` — works for direct-assignment districts without formal checkouts) |
+| VerificationLookup | "What's this asset's audit verification history?" (paste-driven by Asset Tag or Serial Number, live API fetch against `/assets/{assetId}/verifications`; resolves verifier UUIDs to names via `/users/{userId}`) |
 
 ## Menu Structure
 
@@ -101,6 +105,7 @@ iiQ Assets
 ├── Setup
 │   ├── Setup Spreadsheet
 │   ├── Verify Configuration
+│   ├── Show Dashboard URL
 │   └── Setup Automated Triggers
 ├── Asset Data
 │   ├── Load / Resume Assets
@@ -138,9 +143,10 @@ iiQ Assets
 │   │   ├── CategoryBreakdown
 │   │   ├── ManufacturerSummary
 │   │   └── Regenerate Fleet Composition
-│   ├── People
+│   ├── Lookups
 │   │   ├── Individual Lookup
-│   │   └── Regenerate People
+│   │   ├── Verification Lookup
+│   │   └── Regenerate Lookups
 │   ├── Regenerate All Default (★)
 │   └── Regenerate All Analytics
 └── Reference Data
@@ -218,6 +224,8 @@ iiQ Assets
 | `/v1.0/sites/roles` | GET | Site roles (for STUDENT_ROLE_ID) |
 | `/v1.0/users?$s=1` | POST | User count by filters (enrollment) |
 | `/v1.0/users/{userId}/activities` | GET | Per-user activity log — filtered client-side for asset assignment events (IndividualLookup) |
+| `/v1.0/assets/{assetId}/verifications` | GET | Per-asset audit verification history (VerificationLookup) |
+| `/v1.0/users/{userId}` | GET | Resolve verifier user UUIDs to names (VerificationLookup) |
 
 ## Config Sheet Keys
 
@@ -226,6 +234,7 @@ Required:
 - `BEARER_TOKEN`: JWT authentication token
 
 Optional:
+- `DASHBOARD_URL`: Web App `/exec` URL — set after Deploy → New deployment. Read by `Show Dashboard URL` menu handler.
 - `SITE_ID`: Site UUID (multi-site instances)
 - `PAGE_SIZE`: Records per API call (default 100)
 - `THROTTLE_MS`: Delay between requests (default 1000)
@@ -257,6 +266,19 @@ The endpoint URL is a maintainer decision, not a district setting — it lives a
 Payload (schemaVersion 1): `{schemaVersion, installId, project, version, instanceUrl, installedAt, scriptTimeZone, sentAt, rowCount, primarySheet, analyticsSheets}`. `instanceUrl` is the hostname portion of `API_BASE_URL` (e.g. `demo.incidentiq.com`) — iiQ owns the customer relationship, so direct identification is the correct model. No PII, no asset content, no credentials. `installId` is a stable UUID in `PropertiesService` under `TELEMETRY_INSTALL_ID`; `TELEMETRY_INSTALLED_AT` is stamped on first telemetry run. Server-side rate limiting (5 min) and dedupe (~6 h per install/project/day) replace client-side throttling — no `TELEMETRY_LAST_SENT` row.
 
 Server lives in the sibling workspace directory `iiq-sheets-telemetry/`.
+
+## Dashboard Web App (v1.5.0+)
+
+A native Apps Script Web App ships with this project. Each district deploys their own instance bound to their sheet via **Extensions → Apps Script → Deploy → New deployment → Web app** with `Execute as: Me`. The `/exec` URL is pasted into the `DASHBOARD_URL` Config row. The **iiQ Assets > Setup > Show Dashboard URL** menu handler reads that row and shows a modal with the URL (or, if empty, deployment instructions).
+
+Architecture:
+- `Dashboard.gs:doGet` returns `DashboardApp.html`.
+- `Dashboard.gs:getDashboardData` is called from the frontend via `google.script.run`. It computes 4 KPIs directly from `AssetData` (cols K, M, AF, AG — 0-indexed 10, 12, 31, 32 after `getValues()`), then iterates `CHART_REGISTRY` and ships a Chart.js-ready payload.
+- `ChartRegistry.gs:CHART_REGISTRY` is a static array of 19 chart specs across 5 categories. Each entry declares `sheetName`, `category`, `tabLabel`, and one or more `charts[]`. Sheets that don't exist are skipped silently.
+- `CATEGORY_ORDER` drives tab bar order: Fleet Composition, Status & Operations, Aging & Warranty, Replacement Planning, Service & Risk.
+- Frontend is a single HTML file with embedded styles + Chart.js 4.4.1 via CDN. Re-skinned from `iiq-tickets-to-sheets`.
+
+When adding a new analytics sheet: register it in `ChartRegistry.gs` or it won't appear in the dashboard.
 
 ## Data Loading
 

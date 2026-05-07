@@ -4,7 +4,7 @@
  */
 
 /** Current script version — update when releasing new versions */
-const SCRIPT_VERSION = '1.4.1';
+const SCRIPT_VERSION = '1.5.0';
 
 /**
  * Telemetry endpoint — the deployed iiq-sheets-telemetry Web App /exec URL.

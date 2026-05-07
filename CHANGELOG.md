@@ -4,6 +4,65 @@ All notable changes to this project are documented here.
 
 ---
 
+## v1.5.0 — Web app dashboard, audit verification, room granularity (2026-05-07)
+
+A major release combining a new built-in web-app dashboard, asset audit verification history, room-level granularity in inventory and cross-tab analytics, and a handful of API extraction fixes.
+
+### Added
+- **Asset Dashboard Web App** — a deployable Apps Script Web App that renders a full-page tabbed dashboard powered by `AssetData` and registered analytics sheets. Each district deploys their own instance bound to their sheet.
+  - **3 new files**: `scripts/Dashboard.gs`, `scripts/ChartRegistry.gs`, `scripts/DashboardApp.html`.
+  - **4 KPI cards** computed directly from `AssetData`: Total Assets, Avg Age (years), Warranty Active %, Assignment Rate %.
+  - **19 charts** across **5 category tabs**: Fleet Composition, Status & Operations, Aging & Warranty, Replacement Planning, Service & Risk. Charts only render if the source analytics sheet exists.
+  - **2 interactive Lookup tabs** (when their source sheets are installed):
+    - **Individual** — dropdown of owner names; selection runs `/v1.0/users/{userId}/activities` and renders the events as an HTML table.
+    - **Verification** — text input accepting Asset Tag *or* Serial Number; runs `/v1.0/assets/{assetId}/verifications` and renders results as an HTML table. Verifier UUIDs resolve to names via `/v1.0/users/{userId}`; room UUIDs resolve to names via `/v2.0/locations/rooms/{roomId}` (one call per unique value, cached for the lookup).
+  - **Chart.js 4.4.1** frontend (CDN-loaded), 2-column responsive grid, refresh button, deep-linkable tab hashes.
+  - New menu item: **iiQ Assets > Setup > Show Dashboard URL** — modal with the deployed URL or, if not yet deployed, with deployment instructions.
+  - New Config row: `DASHBOARD_URL` (paste the `/exec` URL after deploying).
+- **VerificationLookup sheet** — new optional sheet for per-asset audit verification history. Paste or type an Asset Tag or Serial Number in `B1`; the sheet resolves the asset against `AssetData` and live-fetches verification records from `/v1.0/assets/{assetId}/verifications`.
+  - Columns: Date, Result (Pass/Fail), Method, Location, Room, Verified By, Comments.
+  - Install via **iiQ Assets > Analytics Sheets > Lookups > Verification Lookup**.
+- **API client additions** in `scripts/ApiClient.gs`:
+  - `getAssetVerifications(assetId)` — `/v1.0/assets/{assetId}/verifications`
+  - `getUserById(userId)` — `/v1.0/users/{userId}` (for verifier name resolution)
+  - `getLocationRoomById(roomId)` — `/v2.0/locations/rooms/{roomId}` (for room name resolution)
+
+### Changed
+- **UnassignedInventory** — now groups by **Location + Room** (was Location only). One row per unique `(LocationName, LocationRoomName)` pair, sorted Location A-Z then Room A-Z. Blank room cells display as `(no room)`.
+- **LocationModelBreakdown** — gained a **Room** column (now Location → Room → Model grouping) plus a **Filter by Location** dropdown in `B1` (blank = show all). Row 2 holds column headers; data starts in row 3.
+- **Analytics menu** — "People" submenu renamed to **Lookups** (now hosts both `IndividualLookup` and `VerificationLookup`).
+- `scripts/Config.gs` `SCRIPT_VERSION` → `1.5.0`.
+- `scripts/Setup.gs` Instructions sheet adds a **Built-in Asset Dashboard** section and updates the Lookups submenu reference.
+
+### Fixed
+- **VerificationLookup verifier names** — were displaying as UUIDs because `getUserById` returns a `{ Item: UserDetail }` envelope; the resolver now unwraps `.Item` and reads `Name` (with `FirstName`/`LastName` fallback).
+- **VerificationLookup room** — Room column was showing the LocationRoom UUID; now resolved via `/v2.0/locations/rooms/{roomId}` (envelope unwrapped from `.Item.Name`). Falls back to UUID on API miss.
+- **CategoryBreakdown #N/A error** — formula now wraps the `LET(...)` in an outer `IFERROR` and shows a friendly message when `AssetData` column G (CategoryName) is empty for all rows. Previously crashed with "No matches are found in FILTER evaluation."
+- **AssetData CategoryName extraction** — added `Model.Category.Name` as a third fallback after `Model.CategoryNameWithParent` and `Model.CategoryName`. Many iiQ instances (including demo) return `CategoryNameWithParent: null` but populate `Category.Name`. Existing rows need a Full Reload (or wait for Sunday's weekly refresh) to backfill column G.
+
+### Upgrade Notes
+This release is **non-destructive** for AssetData layout. Two-step upgrade:
+
+1. **Update files**:
+   - Update all `.gs` files from the `scripts/` directory.
+   - **Add** `Dashboard.gs`, `ChartRegistry.gs`, `DashboardApp.html` (new files).
+   - Save and refresh the spreadsheet.
+2. **Deploy the web app** (optional — only if you want the dashboard):
+   - Open **Extensions → Apps Script**.
+   - **Deploy → New deployment** → Type: **Web app**.
+   - Execute as: **Me**; Access: **Anyone within your domain**.
+   - Click **Deploy**, authorize, copy the `/exec` URL.
+   - Paste into the `DASHBOARD_URL` row in the Config sheet.
+   - Confirm via **iiQ Assets > Setup > Show Dashboard URL**.
+
+For future code updates, use **Deploy → Manage deployments → Edit → New version** so the URL remains stable.
+
+To populate column G (CategoryName) for existing rows, run **iiQ Assets > Asset Data > Full Reload** (requires triggers off first) or wait for the Sunday 2 AM weekly refresh trigger.
+
+To regenerate analytics sheets with the new column layouts: **iiQ Assets > Analytics Sheets > Fleet Operations > Unassigned Inventory** and **iiQ Assets > Analytics Sheets > Fleet Composition > Location Model Breakdown**.
+
+---
+
 ## v1.4.1 — Location room name (2026-05-07)
 
 ### Changed

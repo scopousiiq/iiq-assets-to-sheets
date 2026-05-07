@@ -9,6 +9,7 @@ function onOpen() {
     .addSubMenu(ui.createMenu('Setup')
       .addItem('Setup Spreadsheet', 'menuSetupSpreadsheet')
       .addItem('Verify Configuration', 'menuVerifyConfig')
+      .addItem('Show Dashboard URL', 'showDashboardUrl')
       .addSeparator()
       .addItem('Setup Automated Triggers', 'menuSetupTriggers')
       .addItem('View Trigger Status', 'menuViewTriggerStatus')
@@ -82,10 +83,11 @@ function onOpen() {
         .addSeparator()
         .addItem('Regenerate Fleet Composition', 'menuRegenerateFleetComposition')
       )
-      .addSubMenu(ui.createMenu('People')
+      .addSubMenu(ui.createMenu('Lookups')
         .addItem('Individual Lookup', 'menuAddIndividualLookup')
+        .addItem('Verification Lookup', 'menuAddVerificationLookup')
         .addSeparator()
-        .addItem('Regenerate People', 'menuRegeneratePeople')
+        .addItem('Regenerate Lookups', 'menuRegenerateLookups')
       )
       .addSeparator()
       .addItem('Regenerate All Default (\u2605)', 'menuRegenerateAllDefault')
@@ -502,7 +504,7 @@ function menuRegenerateFleetComposition() {
 }
 
 // =============================================================================
-// ANALYTICS — PEOPLE
+// ANALYTICS — LOOKUPS
 // =============================================================================
 
 function menuAddIndividualLookup() {
@@ -510,10 +512,15 @@ function menuAddIndividualLookup() {
   SpreadsheetApp.getUi().alert('Individual Lookup sheet added.\n\nSelect a user from the dropdown in B1 to load their checkout history.');
 }
 
-function menuRegeneratePeople() {
+function menuAddVerificationLookup() {
+  setupVerificationLookupSheet(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Verification Lookup sheet added.\n\nPaste or type an Asset Tag or Serial Number in B1 to load verification audit history.');
+}
+
+function menuRegenerateLookups() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const count = regeneratePeople(ss);
-  SpreadsheetApp.getUi().alert(`Regenerated ${count} People sheet(s).`);
+  const count = regenerateLookups(ss);
+  SpreadsheetApp.getUi().alert(`Regenerated ${count} Lookup sheet(s).`);
 }
 
 // =============================================================================

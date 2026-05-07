@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <title>iiQ Asset Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --iiq-dark-blue: #365c96;
+      --iiq-dark-blue-2: #2d4a7a;
+      --iiq-gold: #febb12;
+      --iiq-teal: #22b2a3;
+      --iiq-orange: #f1663c;
+      --iiq-purple: #715091;
+      --iiq-slate: #1F2937;
+      --iiq-red: #dc2626;
+      --iiq-light-blue: #3397d3;
+      --iiq-light-gray: #F9FAFB;
+      --iiq-border: #E5E7EB;
+      --iiq-text: #374151;
+      --iiq-text-muted: #6B7280;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      font-family: 'Proxima Nova', 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: var(--iiq-text);
+      background: var(--iiq-light-gray);
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--iiq-dark-blue) 0%, var(--iiq-dark-blue-2) 100%);
+      color: white;
+      padding: 18px 28px 20px 28px;
+      position: relative;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      left: 28px; right: 28px; bottom: 0;
+      height: 3px;
+      background: var(--iiq-gold);
+      border-radius: 2px;
+    }
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-badge {
+      display: inline-block;
+      background: var(--iiq-gold);
+      color: var(--iiq-slate);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .header-meta {
+      display: flex;
+      gap: 18px;
+      font-size: 12px;
+      opacity: 0.9;
+      align-items: center;
+    }
+    .refresh-btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.3);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .refresh-btn:hover { background: rgba(255,255,255,0.25); }
+    .refresh-btn.spinning .icon { animation: spin 0.8s linear infinite; display: inline-block; }
+
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 22px 28px 40px 28px;
+    }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .kpi {
+      background: #fff;
+      border: 1px solid var(--iiq-border);
+      border-left: 4px solid var(--iiq-dark-blue);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .kpi.assets    { border-left-color: var(--iiq-dark-blue); }
+    .kpi.age       { border-left-color: var(--iiq-orange); }
+    .kpi.warranty  { border-left-color: var(--iiq-teal); }
+    .kpi.assignment{ border-left-color: var(--iiq-gold); }
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--iiq-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--iiq-slate);
+      margin-top: 4px;
+      line-height: 1.1;
+    }
+    .kpi-unit {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--iiq-text-muted);
+      margin-left: 4px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      background: #fff;
+      border: 1px solid var(--iiq-border);
+      border-left: 3px solid var(--iiq-gold);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--iiq-text);
+    }
+    .badge.color-orange  { border-left-color: var(--iiq-orange); }
+    .badge.color-red     { border-left-color: var(--iiq-red); }
+    .badge.color-gold    { border-left-color: var(--iiq-gold); }
+    .badge.color-teal    { border-left-color: var(--iiq-teal); }
+    .badge.color-purple  { border-left-color: var(--iiq-purple); }
+    .badge.color-darkBlue{ border-left-color: var(--iiq-dark-blue); }
+    .badge-count {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--iiq-slate);
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--iiq-border);
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--iiq-text-muted);
+      border-bottom: 3px solid transparent;
+      margin-bottom: -1px;
+      cursor: pointer;
+      background: transparent;
+      border-left: none;
+      border-right: none;
+      border-top: none;
+      white-space: nowrap;
+    }
+    .tab:hover { color: var(--iiq-dark-blue); }
+    .tab.active {
+      color: var(--iiq-dark-blue);
+      border-bottom-color: var(--iiq-gold);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+    @media (max-width: 900px) {
+      .charts-grid { grid-template-columns: 1fr; }
+      .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--iiq-border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      background: linear-gradient(90deg, var(--iiq-dark-blue) 0%, var(--iiq-teal) 100%);
+      color: white;
+      padding: 9px 14px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .card-body {
+      padding: 14px;
+      height: 280px;
+      position: relative;
+    }
+
+    .footer {
+      margin-top: 30px;
+      padding-top: 14px;
+      border-top: 1px solid var(--iiq-border);
+      text-align: center;
+      font-size: 11px;
+      color: var(--iiq-text-muted);
+    }
+    .footer-logo {
+      color: var(--iiq-dark-blue);
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 2px;
+    }
+
+    .lookup-panel {
+      background: #fff;
+      border: 1px solid var(--iiq-border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .lookup-form {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .lookup-form label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--iiq-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .lookup-form input[type="text"],
+    .lookup-form select {
+      flex: 1 1 260px;
+      min-width: 200px;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid var(--iiq-border);
+      border-radius: 6px;
+      color: var(--iiq-text);
+      background: #fff;
+    }
+    .lookup-form input[type="text"]:focus,
+    .lookup-form select:focus {
+      outline: none;
+      border-color: var(--iiq-dark-blue);
+      box-shadow: 0 0 0 3px rgba(54,92,150,0.15);
+    }
+    .lookup-form button {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      background: var(--iiq-dark-blue);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .lookup-form button:hover { background: var(--iiq-dark-blue-2); }
+    .lookup-form button:disabled { background: var(--iiq-text-muted); cursor: not-allowed; }
+    .lookup-status {
+      font-size: 13px;
+      color: var(--iiq-text-muted);
+      margin: 8px 0 14px 0;
+      min-height: 18px;
+    }
+    .lookup-status.error {
+      color: var(--iiq-orange);
+      font-weight: 600;
+    }
+    .lookup-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--iiq-border);
+      border-radius: 6px;
+    }
+    .lookup-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .lookup-table th {
+      background: var(--iiq-light-gray);
+      color: var(--iiq-text);
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--iiq-border);
+      white-space: nowrap;
+    }
+    .lookup-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--iiq-border);
+      vertical-align: top;
+    }
+    .lookup-table tr:last-child td { border-bottom: none; }
+    .lookup-table tr:hover td { background: var(--iiq-light-gray); }
+    .lookup-empty {
+      padding: 26px;
+      text-align: center;
+      color: var(--iiq-text-muted);
+      font-size: 13px;
+    }
+
+    .loading, .error, .empty-notice {
+      padding: 40px 28px;
+      text-align: center;
+      color: var(--iiq-text-muted);
+      font-size: 14px;
+      background: #fff;
+      border: 1px solid var(--iiq-border);
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+    .error { color: var(--iiq-orange); font-weight: 600; }
+    .empty-notice { color: var(--iiq-text-muted); }
+
+    .spinner, .icon {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+    }
+    .loading .spinner {
+      width: 22px; height: 22px;
+      border-color: var(--iiq-border);
+      border-top-color: var(--iiq-dark-blue);
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-row">
+      <div class="header-title">
+        <div>
+          <div class="header-badge">Incident IQ Dashboard</div>
+          <h1 style="margin-top:6px;">Asset Inventory Overview</h1>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span><strong>Assets:</strong> <span id="meta-total">—</span></span>
+        <span><strong>Generated:</strong> <span id="meta-generated">—</span></span>
+        <button class="refresh-btn" id="refresh-btn" onclick="loadData()">
+          <span class="icon" style="border-color:rgba(255,255,255,0.4);border-top-color:#fff;"></span>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="loading" class="loading">
+      <span class="spinner"></span>Loading dashboard data…
+    </div>
+
+    <div id="error" class="error" style="display:none;"></div>
+
+    <div id="content" style="display:none;">
+      <section class="kpi-row">
+        <div class="kpi assets">
+          <div class="kpi-label">Total Assets</div>
+          <div class="kpi-value" id="kpi-total">—</div>
+        </div>
+        <div class="kpi age">
+          <div class="kpi-label">Avg Age</div>
+          <div class="kpi-value"><span id="kpi-age">—</span><span class="kpi-unit">yrs</span></div>
+        </div>
+        <div class="kpi warranty">
+          <div class="kpi-label">Warranty Active</div>
+          <div class="kpi-value"><span id="kpi-warranty">—</span><span class="kpi-unit">%</span></div>
+        </div>
+        <div class="kpi assignment">
+          <div class="kpi-label">Assignment Rate</div>
+          <div class="kpi-value"><span id="kpi-assignment">—</span><span class="kpi-unit">%</span></div>
+        </div>
+      </section>
+
+      <section id="badge-row" class="badge-row"></section>
+
+      <nav id="tab-bar" class="tab-bar"></nav>
+
+      <div id="tab-panels"></div>
+
+      <footer class="footer">
+        <div class="footer-logo">Incident IQ · iiQ Asset Inventory</div>
+        <div>Native Web-App Dashboard · Data refreshes on demand</div>
+      </footer>
+    </div>
+  </main>
+
+  <script>
+    const IIQ = {
+      darkBlue: '#365c96',
+      gold:     '#febb12',
+      teal:     '#22b2a3',
+      orange:   '#f1663c',
+      purple:   '#715091',
+      slate:    '#1F2937',
+      red:      '#dc2626',
+      lightBlue:'#3397d3',
+      border:   '#E5E7EB',
+      textMuted:'#6B7280'
+    };
+
+    const COLOR_FALLBACKS = ['darkBlue','teal','gold','orange','purple','red','lightBlue','slate'];
+
+    const activeCharts = [];
+
+    if (typeof Chart !== 'undefined') {
+      Chart.defaults.font.family = "'Proxima Nova','Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+      Chart.defaults.font.size = 11;
+      Chart.defaults.color = IIQ.textMuted;
+      Chart.defaults.plugins.legend.labels.boxWidth = 12;
+      Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    }
+
+    function loadData() {
+      if (typeof Chart === 'undefined') {
+        showError('Chart library failed to load. Check network/CDN access to cdn.jsdelivr.net and refresh the page.');
+        return;
+      }
+      document.getElementById('refresh-btn').classList.add('spinning');
+      google.script.run
+        .withSuccessHandler(onData)
+        .withFailureHandler(onError)
+        .getDashboardData();
+    }
+
+    loadData();
+
+    window.addEventListener('hashchange', activateTabFromHash);
+
+    function onError(err) {
+      document.getElementById('refresh-btn').classList.remove('spinning');
+      showError('Error loading data: ' + (err && err.message ? err.message : err));
+    }
+
+    function showError(msg) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'none';
+      const box = document.getElementById('error');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    function onData(data) {
+      document.getElementById('refresh-btn').classList.remove('spinning');
+      if (!data || data.error) return onError(data && data.error ? new Error(data.error) : new Error('No data returned'));
+
+      document.getElementById('meta-total').textContent = Number(data.totalAssets || 0).toLocaleString();
+      document.getElementById('meta-generated').textContent = new Date(data.generatedAt).toLocaleString();
+
+      document.getElementById('kpi-total').textContent = data.kpis.totalAssets.toLocaleString();
+      document.getElementById('kpi-age').textContent = data.kpis.avgAgeYears.toFixed(1);
+      document.getElementById('kpi-warranty').textContent = data.kpis.warrantyActivePct.toFixed(1);
+      document.getElementById('kpi-assignment').textContent = data.kpis.assignmentRatePct.toFixed(1);
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+
+      renderBadges(data.badges || []);
+      rebuildTabs(data.categoryGroups || []);
+    }
+
+    function renderBadges(badges) {
+      const row = document.getElementById('badge-row');
+      row.innerHTML = '';
+      if (!badges.length) { row.style.display = 'none'; return; }
+      row.style.display = 'flex';
+      badges.forEach(b => {
+        const el = document.createElement('div');
+        el.className = 'badge color-' + (b.color || 'gold');
+        el.innerHTML = '<span>' + escapeHtml(b.label) + '</span><span class="badge-count">' + b.count + '</span>';
+        row.appendChild(el);
+      });
+    }
+
+    function rebuildTabs(groups) {
+      activeCharts.forEach(c => c.destroy());
+      activeCharts.length = 0;
+
+      const tabBar = document.getElementById('tab-bar');
+      const panels = document.getElementById('tab-panels');
+      tabBar.innerHTML = '';
+      panels.innerHTML = '';
+
+      if (!groups.length) {
+        const notice = document.createElement('div');
+        notice.className = 'empty-notice';
+        notice.textContent = 'No analytics sheets registered. Add sheets via iiQ Assets > Analytics Sheets, then click Refresh.';
+        panels.appendChild(notice);
+        return;
+      }
+
+      groups.forEach((group, idx) => {
+        const slug = slugify(group.tabLabel || group.category);
+        const tab = document.createElement('button');
+        tab.className = 'tab' + (idx === 0 ? ' active' : '');
+        tab.textContent = group.tabLabel || group.category;
+        tab.dataset.tab = slug;
+        tab.onclick = () => activateTab(slug, true);
+        tabBar.appendChild(tab);
+
+        const panel = document.createElement('section');
+        panel.className = 'tab-panel' + (idx === 0 ? ' active' : '');
+        panel.dataset.tab = slug;
+
+        if (group.lookup) {
+          panel.appendChild(buildLookupPanel(group.lookup));
+        } else {
+          const grid = document.createElement('div');
+          grid.className = 'charts-grid';
+          group.charts.forEach(chart => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            const header = document.createElement('div');
+            header.className = 'card-header';
+            header.textContent = chart.title;
+            const body = document.createElement('div');
+            body.className = 'card-body';
+            const canvas = document.createElement('canvas');
+            body.appendChild(canvas);
+            card.appendChild(header);
+            card.appendChild(body);
+            grid.appendChild(card);
+            renderChart(canvas, chart);
+          });
+          panel.appendChild(grid);
+        }
+        panels.appendChild(panel);
+      });
+
+      activateTabFromHash();
+    }
+
+    function activateTabFromHash() {
+      const hash = (window.location.hash || '').replace('#','');
+      if (hash) activateTab(hash, false);
+    }
+
+    function activateTab(slug, updateHash) {
+      const tabs = document.querySelectorAll('.tab');
+      const panels = document.querySelectorAll('.tab-panel');
+      let matched = false;
+      tabs.forEach(t => {
+        const active = t.dataset.tab === slug;
+        t.classList.toggle('active', active);
+        if (active) matched = true;
+      });
+      if (!matched) return;
+      panels.forEach(p => p.classList.toggle('active', p.dataset.tab === slug));
+      if (updateHash && history.replaceState) {
+        history.replaceState(null, '', '#' + slug);
+      }
+    }
+
+    function buildLookupPanel(lookup) {
+      const wrap = document.createElement('div');
+      wrap.className = 'lookup-panel';
+
+      const form = document.createElement('form');
+      form.className = 'lookup-form';
+      form.onsubmit = e => { e.preventDefault(); return false; };
+
+      const label = document.createElement('label');
+      label.textContent = lookup.inputLabel || 'Lookup:';
+      form.appendChild(label);
+
+      let input;
+      if (lookup.inputType === 'dropdown') {
+        input = document.createElement('select');
+        input.disabled = true;
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Loading…';
+        input.appendChild(placeholder);
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = lookup.placeholder || '';
+        input.autocomplete = 'off';
+      }
+      form.appendChild(input);
+
+      const submit = document.createElement('button');
+      submit.type = 'submit';
+      submit.textContent = 'Look Up';
+      form.appendChild(submit);
+
+      const status = document.createElement('div');
+      status.className = 'lookup-status';
+
+      const tableWrap = document.createElement('div');
+      tableWrap.className = 'lookup-table-wrap';
+      tableWrap.style.display = 'none';
+
+      const empty = document.createElement('div');
+      empty.className = 'lookup-empty';
+      empty.textContent = lookup.inputType === 'dropdown'
+        ? 'Select a user to load their asset assignment history.'
+        : 'Paste or type an Asset Tag or Serial Number to load verification history.';
+
+      wrap.appendChild(form);
+      wrap.appendChild(status);
+      wrap.appendChild(empty);
+      wrap.appendChild(tableWrap);
+
+      // Populate dropdown options if needed.
+      if (lookup.inputType === 'dropdown' && lookup.optionsFunction) {
+        google.script.run
+          .withSuccessHandler(names => {
+            input.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = lookup.placeholder || '— Choose —';
+            input.appendChild(ph);
+            names.forEach(n => {
+              const opt = document.createElement('option');
+              opt.value = n;
+              opt.textContent = n;
+              input.appendChild(opt);
+            });
+            input.disabled = false;
+          })
+          .withFailureHandler(err => {
+            input.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = 'Failed to load options';
+            input.appendChild(ph);
+            status.textContent = 'Error loading options: ' + (err && err.message ? err.message : err);
+            status.classList.add('error');
+          })[lookup.optionsFunction]();
+      }
+
+      const runIt = () => {
+        const value = (input.value || '').trim();
+        if (!value) {
+          status.textContent = lookup.inputType === 'dropdown'
+            ? 'Select a user.'
+            : 'Enter a value.';
+          status.classList.remove('error');
+          tableWrap.style.display = 'none';
+          empty.style.display = 'block';
+          return;
+        }
+        status.textContent = 'Loading…';
+        status.classList.remove('error');
+        tableWrap.style.display = 'none';
+        empty.style.display = 'none';
+        submit.disabled = true;
+        input.disabled = true;
+
+        google.script.run
+          .withSuccessHandler(result => {
+            submit.disabled = false;
+            input.disabled = false;
+            if (result && result.error) {
+              status.textContent = result.error;
+              status.classList.add('error');
+              tableWrap.style.display = 'none';
+              empty.style.display = 'none';
+              return;
+            }
+            status.textContent = (result && result.status) || '';
+            status.classList.remove('error');
+            const rows = (result && result.rows) || [];
+            const headers = (result && result.headers) || [];
+            renderLookupTable(tableWrap, headers, rows);
+            if (rows.length > 0) {
+              tableWrap.style.display = 'block';
+              empty.style.display = 'none';
+            } else {
+              tableWrap.style.display = 'none';
+              empty.style.display = 'none';
+            }
+          })
+          .withFailureHandler(err => {
+            submit.disabled = false;
+            input.disabled = false;
+            status.textContent = 'Error: ' + (err && err.message ? err.message : err);
+            status.classList.add('error');
+          })[lookup.serverFunction](value);
+      };
+
+      submit.onclick = runIt;
+      if (lookup.inputType === 'dropdown') {
+        input.onchange = runIt;
+      } else {
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runIt(); } });
+      }
+
+      return wrap;
+    }
+
+    function renderLookupTable(container, headers, rows) {
+      container.innerHTML = '';
+      if (!rows.length) return;
+      const table = document.createElement('table');
+      table.className = 'lookup-table';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      headers.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+          const td = document.createElement('td');
+          td.textContent = formatLookupCell(cell);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    function formatLookupCell(cell) {
+      if (cell === null || cell === undefined || cell === '') return '';
+      // ISO date strings → local date+time
+      if (typeof cell === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(cell)) {
+        const d = new Date(cell);
+        if (!isNaN(d.getTime())) return d.toLocaleString();
+      }
+      return String(cell);
+    }
+
+    function renderChart(canvas, chart) {
+      const datasets = chart.datasets.map((d, idx) => {
+        const color = IIQ[d.color] || IIQ[COLOR_FALLBACKS[idx % COLOR_FALLBACKS.length]];
+        return datasetForType(chart.type, d, color);
+      });
+
+      const cfg = {
+        type: baseChartType(chart.type),
+        data: { labels: chart.labels, datasets: datasets },
+        options: chartOptions(chart)
+      };
+      activeCharts.push(new Chart(canvas, cfg));
+    }
+
+    function baseChartType(type) {
+      if (type === 'line') return 'line';
+      return 'bar';
+    }
+
+    function datasetForType(type, d, color) {
+      if (type === 'line') {
+        return {
+          label: d.label,
+          data: d.data,
+          borderColor: color,
+          backgroundColor: hexToRgba(color, 0.15),
+          tension: 0.35,
+          fill: false,
+          pointRadius: 3,
+          pointBackgroundColor: color
+        };
+      }
+      return {
+        label: d.label,
+        data: d.data,
+        backgroundColor: color,
+        borderRadius: 3
+      };
+    }
+
+    function chartOptions(chart) {
+      const horizontal = chart.type === 'horizontalBar' || chart.type === 'stackedHorizontalBar';
+      const stacked = chart.type === 'stackedBar' || chart.type === 'stackedHorizontalBar';
+      const percent = chart.datasets.some(d => d.percent);
+
+      const valueAxis = {
+        beginAtZero: true,
+        stacked: stacked,
+        grid: { color: IIQ.border },
+        ticks: {
+          precision: 0,
+          callback: percent ? function(v) { return (v * 100).toFixed(0) + '%'; } : undefined
+        }
+      };
+      if (percent) valueAxis.suggestedMax = 1;
+
+      const categoryAxis = { stacked: stacked, grid: { display: false } };
+
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: horizontal ? 'y' : 'x',
+        plugins: {
+          legend: chart.datasets.length > 1
+            ? { position: 'top', align: 'end' }
+            : { display: false },
+          tooltip: {
+            backgroundColor: IIQ.slate,
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            padding: 10,
+            cornerRadius: 6,
+            callbacks: percent ? {
+              label: function(ctx) {
+                return ctx.dataset.label + ': ' + (ctx.parsed[horizontal?'x':'y'] * 100).toFixed(1) + '%';
+              }
+            } : undefined
+          }
+        },
+        scales: horizontal
+          ? { x: valueAxis, y: categoryAxis }
+          : { x: categoryAxis, y: valueAxis }
+      };
+    }
+
+    function hexToRgba(hex, alpha) {
+      const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      if (!m) return hex;
+      return 'rgba(' + parseInt(m[1],16) + ',' + parseInt(m[2],16) + ',' + parseInt(m[3],16) + ',' + alpha + ')';
+    }
+
+    function slugify(s) {
+      return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>

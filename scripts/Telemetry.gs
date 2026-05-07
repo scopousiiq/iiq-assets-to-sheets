@@ -52,7 +52,8 @@ const TELEMETRY_CANONICAL_ANALYTICS = [
   'LocationModelFiltered',
   'CategoryBreakdown',
   'ManufacturerSummary',
-  'IndividualLookup'
+  'IndividualLookup',
+  'VerificationLookup'
 ];
 
 // ---- Wire protocol — do not edit without coordinating a server change ----

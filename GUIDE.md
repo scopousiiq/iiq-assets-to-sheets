@@ -215,9 +215,12 @@ Key patterns:
 
 **8 default sheets** (marked with ★) are created by Setup Spreadsheet. They cover the most common reporting needs.
 
-**16 optional sheets** can be installed individually from the **iiQ Assets > Analytics Sheets** menu, organized into five category submenus (Fleet Operations, Service & Reliability, Budget & Planning, Fleet Composition, People). Each submenu lists both default and optional sheets.
+**17 optional sheets** can be installed individually from the **iiQ Assets > Analytics Sheets** menu, organized into five category submenus (Fleet Operations, Service & Reliability, Budget & Planning, Fleet Composition, Lookups). Each submenu lists both default and optional sheets.
 
-The **People** category holds `IndividualLookup` — a dropdown-driven per-user asset assignment history view. Unlike other analytics sheets, it calls the iiQ API live on selection (via `/users/{userId}/activities`) and writes results into the sheet, rather than using a spreadsheet formula. Works for districts that assign devices directly without formal checkouts.
+The **Lookups** category holds two interactive drill-down views that call the iiQ API live (rather than using a spreadsheet formula):
+
+- `IndividualLookup` — dropdown-driven per-user asset assignment history. Pick a user from the dropdown in `B1`; the script fetches `/users/{userId}/activities` and writes the asset events into the sheet. Works for districts that assign devices directly without formal checkouts.
+- `VerificationLookup` — paste-driven per-asset audit verification history. Type or paste an Asset Tag or Serial Number into `B1`; the script resolves it to an `AssetId` against `AssetData`, calls `/assets/{assetId}/verifications`, and writes the verification records (date, pass/fail, method, location, room, verifier name, comments). Verifier UUIDs are resolved to display names via `/users/{userId}` (one call per unique verifier, cached for the lookup).
 
 ### Regeneration
 
@@ -347,6 +350,9 @@ Set `REPLACEMENT_AGE_YEARS` in the Config sheet (default 4). The `BudgetPlanning
 | `/v1.0/assets/status/types?$s=100` | GET | Asset status types |
 | `/v1.0/sites/roles` | GET | Site roles (for finding STUDENT_ROLE_ID) |
 | `/v1.0/users?$s=1` | POST | User count by filters (enrollment) |
+| `/v1.0/users/{userId}/activities` | GET | Per-user activity log (IndividualLookup) |
+| `/v1.0/users/{userId}` | GET | Single user lookup (VerificationLookup verifier resolution) |
+| `/v1.0/assets/{assetId}/verifications` | GET | Per-asset audit verification history (VerificationLookup) |
 
 ### Authentication
 
@@ -379,3 +385,96 @@ The `$o` query parameter controls result ordering:
 - Incremental refresh: `AssetModifiedDate asc` (oldest changes first)
 
 Sorting is critical for reliable pagination — unsorted results can shift between pages during long-running loads.
+
+---
+
+## Part 9: Built-in Dashboard (Web App)
+
+A native Apps Script Web App ships with this project (added in v1.5.0). Each district deploys their own instance bound to their sheet — no Looker Studio account needed for the basic view.
+
+### Architecture
+
+```
+viewer browser → doGet(e) → DashboardApp.html (Chart.js 4.4.1)
+                   ↓ google.script.run.getDashboardData()
+                getDashboardData()
+                   ↓ reads AssetData + iterates CHART_REGISTRY
+                returns { kpis, badges, categoryGroups }
+```
+
+Files:
+- `scripts/Dashboard.gs` — server entry points (`doGet`, `getDashboardData`, `showDashboardUrl`).
+- `scripts/ChartRegistry.gs` — declarative `CHART_REGISTRY` array (19 chart specs across 5 categories) plus `CATEGORY_ORDER`.
+- `scripts/DashboardApp.html` — single-page frontend (Chart.js 4.4.1 via CDN).
+
+### Deployment
+
+1. **Extensions → Apps Script** from the sheet.
+2. **Deploy → New deployment** → Type: **Web app**.
+3. Execute as: **Me**. Who has access: **Anyone within your domain**.
+4. Click **Deploy**, authorize, copy the `/exec` URL.
+5. Paste into the `DASHBOARD_URL` row in the Config sheet.
+6. **iiQ Assets > Setup > Show Dashboard URL** confirms.
+
+For code updates: **Deploy → Manage deployments → Edit → New version** publishes to the same URL.
+
+### Dashboard Contents
+
+**4 KPI cards** computed directly from `AssetData`:
+- Total Assets — row count
+- Avg Age — mean of column AF (AgeYears)
+- Warranty Active % — share of column AG = "Active"
+- Assignment Rate % — share of rows with non-empty `OwnerId`
+
+**5 chart tabs + 2 lookup tabs** (lookup tabs only appear when their source sheet is installed):
+
+| Tab | Charts |
+|-----|--------|
+| Composition | LocationSummary, ModelBreakdown, CategoryBreakdown, ManufacturerSummary |
+| Status | StatusOverview, AssignmentOverview, DeviceReadiness, SpareAssets |
+| Aging | AgingAnalysis, WarrantyTimeline, DeviceLifecycle |
+| Budget | BudgetPlanning, ReplacementPlanning, ReplacementForecast |
+| Service | ServiceImpact, BreakRate, HighTicketLocations, LostStolenRate, ModelFragmentation |
+| Individual | IndividualLookup (interactive — dropdown of users, results as HTML table) |
+| Verification | VerificationLookup (interactive — paste Asset Tag/Serial, results as HTML table) |
+
+Charts only render if you've installed the source sheet via **Analytics Sheets** menu. Lookup tabs make live API calls (`/users/{userId}/activities` and `/assets/{assetId}/verifications`) — they run server-side as the deployer, so viewers don't need spreadsheet or iiQ access.
+
+### Adding a New Chart
+
+When you add a new analytics sheet (whether default or optional), it won't show up in the dashboard until you register it in `ChartRegistry.gs`:
+
+```javascript
+{
+  sheetName: 'YourNewSheet',
+  category: 'Fleet Composition',  // or any of the 5 categories
+  tabLabel: 'Composition',
+  charts: [{
+    title: 'My New Chart',
+    type: 'horizontalBar',  // or bar, line, stackedBar, stackedHorizontalBar
+    labelCol: 0,            // 0-indexed
+    series: [
+      { header: 'Count', col: 1, color: 'darkBlue' }
+    ],
+    rowStart: 2,
+    rowMode: 'fixed',
+    rowCount: 20
+  }]
+}
+```
+
+After deploying, the new chart appears on the next page refresh.
+
+### Why Not Looker Studio?
+
+The built-in dashboard is **complementary** to Looker Studio — it's not a replacement. Use the built-in dashboard for:
+- Quick at-a-glance views of fleet composition and status
+- Easy sharing with non-technical stakeholders (no Looker account needed)
+- Snapshot reporting on a known set of metrics
+
+Use Looker Studio for:
+- Custom filtering, parameterization, drill-downs
+- Combining multiple data sources
+- Scheduled email delivery
+- More chart types (pie, geo, table, etc.)
+

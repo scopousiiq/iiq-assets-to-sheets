@@ -235,7 +235,7 @@ function extractAssetRow(asset) {
     asset.SerialNumber || '',
     model.ModelName || model.Name || asset.ModelName || '',
     model.ManufacturerName || (model.Manufacturer ? model.Manufacturer.Name : '') || '',
-    model.CategoryNameWithParent || model.CategoryName || '',
+    model.CategoryNameWithParent || (model.Category && model.Category.Name) || model.CategoryName || '',
     location.LocationId || asset.LocationId || '',
     location.Name || asset.LocationName || '',
     location.LocationTypeName || '',

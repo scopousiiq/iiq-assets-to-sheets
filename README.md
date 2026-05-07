@@ -93,7 +93,7 @@ Use **iiQ Assets > Analytics Sheets** to add any of these 16 optional sheets:
 | Service & Reliability | Break Rate, High Ticket Locations |
 | Budget & Planning | Replacement Planning, Replacement Forecast, Warranty Timeline, Device Lifecycle |
 | Fleet Composition | Location Model Breakdown, Location Model Filtered, Category Breakdown, Manufacturer Summary |
-| People | Individual Lookup (dropdown-driven asset assignment history per user — calls the user activities API live on selection; works for districts that assign devices directly without formal checkouts) |
+| Lookups | Individual Lookup (dropdown-driven asset assignment history per user — calls the user activities API live on selection; works for districts that assign devices directly without formal checkouts), Verification Lookup (paste-driven per-asset audit verification history — paste an Asset Tag or Serial Number, calls the verifications API live and resolves verifier user IDs to names) |
 
 > **Flexible & Customizable:** Districts can delete any analytics sheet and recreate it later via the menu. Default sheets (marked with ★) can also be recreated if accidentally deleted.
 
@@ -104,6 +104,7 @@ iiQ Assets
 ├── Setup
 │   ├── Setup Spreadsheet
 │   ├── Verify Configuration
+│   ├── Show Dashboard URL
 │   ├── Setup Automated Triggers
 │   ├── View Trigger Status
 │   └── Remove Automated Triggers
@@ -153,9 +154,10 @@ iiQ Assets
 │   │   ├── Category Breakdown
 │   │   ├── Manufacturer Summary
 │   │   └── Regenerate Fleet Composition
-│   ├── People
+│   ├── Lookups
 │   │   ├── Individual Lookup
-│   │   └── Regenerate People
+│   │   ├── Verification Lookup
+│   │   └── Regenerate Lookups
 │   ├── Regenerate All Default (★)
 │   └── Regenerate All Analytics
 ```
@@ -170,6 +172,7 @@ Default sheets (★) are created by **Setup Spreadsheet**. All sheets — defaul
 |-----|----------|-------------|
 | `API_BASE_URL` | Yes | Your iiQ instance URL (e.g., `https://yourdistrict.incidentiq.com`) |
 | `BEARER_TOKEN` | Yes | API token from Admin > Developer Tools |
+| `DASHBOARD_URL` | No | Web App `/exec` URL — set after deploying the dashboard (see "Built-in Dashboard" above) |
 | `SITE_ID` | No | Site UUID (only for multi-site instances) |
 | `PAGE_SIZE` | No | Records per API call (default 100) |
 | `THROTTLE_MS` | No | Delay between requests in ms (default 1000) |
@@ -195,6 +198,28 @@ The daily refresh uses iiQ's ModifiedDate filter to only pull changed records. I
 The weekly full refresh starts Sunday at 2 AM. If the reload does not finish in a single Apps Script run, the 10-minute continue trigger keeps resuming it until the dataset is fully rebuilt.
 
 Deleted assets in iiQ are automatically excluded by the API — they are never downloaded. The weekly full reload catches edge cases like un-deleted assets reappearing.
+
+## Built-in Dashboard (Web App)
+
+A native Apps Script Web App ships with this project — a shareable URL that renders a full-page tabbed dashboard powered by your AssetData and analytics sheets. No Looker Studio required.
+
+**One-time deployment:**
+
+1. Open **Extensions → Apps Script** from the sheet.
+2. Click **Deploy → New deployment**. Type: **Web app**.
+3. **Execute as: Me** (the deployer). *Critical — viewers won't need spreadsheet access this way.*
+4. **Who has access: Anyone within your domain** (or "Anyone with the link" for broader sharing).
+5. Click **Deploy**, authorize, copy the `/exec` URL.
+6. In the **Config** sheet, paste the URL into the `DASHBOARD_URL` row.
+7. Open **iiQ Assets > Setup > Show Dashboard URL** to confirm and copy the link.
+
+**Updating after code changes:** **Deploy → Manage deployments → Edit (pencil) → New version** keeps the URL stable.
+
+**What you see:**
+- 4 KPI cards: Total Assets, Avg Age, Warranty Active %, Assignment Rate %
+- 5 chart tabs: Composition, Status, Aging, Budget, Service (19 charts powered by Chart.js)
+- 2 interactive lookup tabs (when installed): **Individual** (dropdown by user) and **Verification** (paste Asset Tag or Serial Number) — results render as HTML tables, with live API calls
+- Tabs only appear for sheets you've installed — install more via **Analytics Sheets** menu
 
 ## Connecting to Looker Studio / Power BI
 

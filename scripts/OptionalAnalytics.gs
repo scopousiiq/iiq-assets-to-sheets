@@ -74,21 +74,24 @@ function setupReplacementForecastSheet(ss) {
 
 function setupUnassignedInventorySheet(ss) {
   const { sheet, isNew } = getOrCreateSheet(ss, 'UnassignedInventory', [[
-    'Location', 'Unassigned Devices', 'Active Unassigned', 'Avg Age (Years)', 'Est. Value'
+    'Location', 'Room', 'Unassigned Devices', 'Active Unassigned', 'Avg Age (Years)', 'Est. Value'
   ]], '#f1663c');
 
   const formula = '=LET(\n' +
-    '  locs, UNIQUE(FILTER(AssetData!I2:I, (AssetData!I2:I<>"")*(AssetData!K2:K=""))),\n' +
-    '  total, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!K:K, ""))),\n' +
-    '  active, BYROW(locs, LAMBDA(loc, COUNTIFS(AssetData!I:I, loc, AssetData!K:K, "", AssetData!M:M, "<>Retired"))),\n' +
-    '  avg_age, BYROW(locs, LAMBDA(loc, IFERROR(AVERAGEIFS(AssetData!AF:AF, AssetData!I:I, loc, AssetData!K:K, ""), 0))),\n' +
-    '  value, BYROW(locs, LAMBDA(loc, SUMIFS(AssetData!P:P, AssetData!I:I, loc, AssetData!K:K, ""))),\n' +
-    '  IFERROR(SORT(HSTACK(locs, total, active, avg_age, value), 2, FALSE),\n' +
-    '    HSTACK(locs, total, active, avg_age, value))\n' +
+    '  pairs, UNIQUE(FILTER(HSTACK(AssetData!I2:I, AssetData!AD2:AD&""), (AssetData!I2:I<>"")*(AssetData!K2:K=""))),\n' +
+    '  locs, INDEX(pairs, 0, 1),\n' +
+    '  rooms, INDEX(pairs, 0, 2),\n' +
+    '  total, MAP(locs, rooms, LAMBDA(l, r, COUNTIFS(AssetData!I:I, l, AssetData!AD:AD, r, AssetData!K:K, ""))),\n' +
+    '  active, MAP(locs, rooms, LAMBDA(l, r, COUNTIFS(AssetData!I:I, l, AssetData!AD:AD, r, AssetData!K:K, "", AssetData!M:M, "<>Retired"))),\n' +
+    '  avg_age, MAP(locs, rooms, LAMBDA(l, r, IFERROR(AVERAGEIFS(AssetData!AF:AF, AssetData!I:I, l, AssetData!AD:AD, r, AssetData!K:K, ""), 0))),\n' +
+    '  value, MAP(locs, rooms, LAMBDA(l, r, SUMIFS(AssetData!P:P, AssetData!I:I, l, AssetData!AD:AD, r, AssetData!K:K, ""))),\n' +
+    '  room_display, MAP(rooms, LAMBDA(r, IF(r="", "(no room)", r))),\n' +
+    '  result, HSTACK(locs, room_display, total, active, avg_age, value),\n' +
+    '  IFERROR(SORT(result, 1, TRUE, 2, TRUE), result)\n' +
     ')';
 
   sheet.getRange(2, 1).setFormula(formula);
-  if (isNew) sheet.getRange('E:E').setNumberFormat('$#,##0');
+  if (isNew) sheet.getRange('F:F').setNumberFormat('$#,##0');
 }
 
 // =============================================================================
@@ -126,7 +129,7 @@ function setupCategoryBreakdownSheet(ss) {
     'Category', 'Total', 'Active', 'Retired', 'Avg Age (Years)', 'Total Value'
   ]], '#f1663c');
 
-  const formula = '=LET(\n' +
+  const formula = '=IFERROR(LET(\n' +
     '  cats, UNIQUE(FILTER(AssetData!G2:G, AssetData!G2:G<>"")),\n' +
     '  total, BYROW(cats, LAMBDA(c, COUNTIF(AssetData!G:G, c))),\n' +
     '  active, BYROW(cats, LAMBDA(c, COUNTIFS(AssetData!G:G, c, AssetData!M:M, "<>Retired"))),\n' +
@@ -135,7 +138,7 @@ function setupCategoryBreakdownSheet(ss) {
     '  value, BYROW(cats, LAMBDA(c, SUMIF(AssetData!G:G, c, AssetData!P:P))),\n' +
     '  IFERROR(SORT(HSTACK(cats, total, active, retired, avg_age, value), 2, FALSE),\n' +
     '    HSTACK(cats, total, active, retired, avg_age, value))\n' +
-    ')';
+    '), "No category data — AssetData column G (CategoryName) is empty for all assets. Your iiQ instance may not populate Model.CategoryNameWithParent.")';
 
   sheet.getRange(2, 1).setFormula(formula);
   if (isNew) sheet.getRange('F:F').setNumberFormat('$#,##0');
@@ -432,28 +435,60 @@ function setupReplacementPlanningSheet(ss) {
 // =============================================================================
 
 function setupLocationModelBreakdownSheet(ss) {
-  const { sheet } = getOrCreateSheet(ss, 'LocationModelBreakdown', [[
-    'Location', 'Model', 'Manufacturer', 'Total', 'Active', 'Retired', 'Avg Age (Years)'
-  ]], '#f1663c');
+  let sheet = ss.getSheetByName('LocationModelBreakdown');
+  if (!sheet) {
+    sheet = ss.insertSheet('LocationModelBreakdown');
+    sheet.setTabColor('#f1663c');
+  }
+  // Wipe rows 1-2 for fresh layout (handles migration from old single-header version).
+  sheet.getRange(1, 1, 2, Math.max(sheet.getMaxColumns(), 8)).clearContent();
+  sheet.getRange(1, 1).setValue('Filter by Location:').setFontWeight('bold');
+  sheet.getRange(1, 3).setValue('(blank = all locations)').setFontStyle('italic');
+  sheet.getRange(2, 1, 1, 8).setValues([[
+    'Location', 'Room', 'Model', 'Manufacturer', 'Total', 'Active', 'Retired', 'Avg Age (Years)'
+  ]]).setFontWeight('bold');
+  sheet.setFrozenRows(2);
+
+  // Clear stale data below the new header rows.
+  if (sheet.getLastRow() > 2) {
+    sheet.getRange(3, 1, sheet.getLastRow() - 2, Math.max(sheet.getLastColumn(), 8)).clearContent();
+  }
+
+  // Dropdown sourced from Locations sheet col B (Name). allowInvalid=true so
+  // the user can clear the cell to mean "all locations".
+  const locSheet = ss.getSheetByName('Locations');
+  if (locSheet) {
+    const rule = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(locSheet.getRange('B2:B'), true)
+      .setAllowInvalid(true)
+      .build();
+    sheet.getRange(1, 2).setDataValidation(rule);
+  }
 
   const formula = '=LET(\n' +
-    '  pairs, UNIQUE(FILTER(HSTACK(AssetData!I2:I, AssetData!E2:E), (AssetData!I2:I<>"")*(AssetData!E2:E<>""))),\n' +
-    '  loc_col, INDEX(pairs,,1),\n' +
-    '  model_col, INDEX(pairs,,2),\n' +
-    '  mfr, BYROW(model_col, LAMBDA(m, IFERROR(INDEX(FILTER(AssetData!F:F, AssetData!E:E=m), 1), ""))),\n' +
-    '  total, BYROW(SEQUENCE(ROWS(pairs)), LAMBDA(i,\n' +
-    '    COUNTIFS(AssetData!I:I, INDEX(loc_col, i), AssetData!E:E, INDEX(model_col, i)))),\n' +
-    '  active, BYROW(SEQUENCE(ROWS(pairs)), LAMBDA(i,\n' +
-    '    COUNTIFS(AssetData!I:I, INDEX(loc_col, i), AssetData!E:E, INDEX(model_col, i), AssetData!M:M, "<>Retired"))),\n' +
-    '  retired, BYROW(SEQUENCE(ROWS(pairs)), LAMBDA(i,\n' +
-    '    COUNTIFS(AssetData!I:I, INDEX(loc_col, i), AssetData!E:E, INDEX(model_col, i), AssetData!M:M, "Retired"))),\n' +
-    '  avg_age, BYROW(SEQUENCE(ROWS(pairs)), LAMBDA(i,\n' +
-    '    IFERROR(AVERAGEIFS(AssetData!AF:AF, AssetData!I:I, INDEX(loc_col, i), AssetData!E:E, INDEX(model_col, i)), 0))),\n' +
-    '  IFERROR(SORT(HSTACK(loc_col, model_col, mfr, total, active, retired, avg_age), 1, TRUE, 4, FALSE),\n' +
-    '    HSTACK(loc_col, model_col, mfr, total, active, retired, avg_age))\n' +
+    '  sel, B1,\n' +
+    '  triples, UNIQUE(FILTER(\n' +
+    '    HSTACK(AssetData!I2:I, AssetData!AD2:AD&"", AssetData!E2:E),\n' +
+    '    (AssetData!I2:I<>"")*(AssetData!E2:E<>"")*((sel="")+(AssetData!I2:I=sel))\n' +
+    '  )),\n' +
+    '  loc_col, INDEX(triples,,1),\n' +
+    '  room_col, INDEX(triples,,2),\n' +
+    '  model_col, INDEX(triples,,3),\n' +
+    '  mfr, MAP(model_col, LAMBDA(m, IFERROR(INDEX(FILTER(AssetData!F:F, AssetData!E:E=m), 1), ""))),\n' +
+    '  total, MAP(loc_col, room_col, model_col, LAMBDA(l, r, m,\n' +
+    '    COUNTIFS(AssetData!I:I, l, AssetData!AD:AD, r, AssetData!E:E, m))),\n' +
+    '  active, MAP(loc_col, room_col, model_col, LAMBDA(l, r, m,\n' +
+    '    COUNTIFS(AssetData!I:I, l, AssetData!AD:AD, r, AssetData!E:E, m, AssetData!M:M, "<>Retired"))),\n' +
+    '  retired, MAP(loc_col, room_col, model_col, LAMBDA(l, r, m,\n' +
+    '    COUNTIFS(AssetData!I:I, l, AssetData!AD:AD, r, AssetData!E:E, m, AssetData!M:M, "Retired"))),\n' +
+    '  avg_age, MAP(loc_col, room_col, model_col, LAMBDA(l, r, m,\n' +
+    '    IFERROR(AVERAGEIFS(AssetData!AF:AF, AssetData!I:I, l, AssetData!AD:AD, r, AssetData!E:E, m), 0))),\n' +
+    '  room_display, MAP(room_col, LAMBDA(r, IF(r="", "(no room)", r))),\n' +
+    '  result, HSTACK(loc_col, room_display, model_col, mfr, total, active, retired, avg_age),\n' +
+    '  IFERROR(SORT(result, 1, TRUE, 2, TRUE, 5, FALSE), result)\n' +
     ')';
 
-  sheet.getRange(2, 1).setFormula(formula);
+  sheet.getRange(3, 1).setFormula(formula);
 }
 
 // =============================================================================
@@ -741,6 +776,252 @@ function removeIndividualLookupTrigger() {
 }
 
 // =============================================================================
+// VERIFICATION LOOKUP
+// "Show me audit verification history for one asset"
+// Interactive paste-driven view — type/paste an asset tag or serial number,
+// onEdit resolves it to an AssetId and fetches verifications live.
+// =============================================================================
+
+const VERIFICATION_LOOKUP_SHEET = 'VerificationLookup';
+const VERIFICATION_LOOKUP_HANDLER = 'onEditVerificationLookup';
+const VERIFICATION_LOOKUP_HEADERS = [
+  'Date', 'Result', 'Method', 'Location', 'Room', 'Verified By', 'Comments'
+];
+const VERIFICATION_LOOKUP_DATA_COLS = VERIFICATION_LOOKUP_HEADERS.length;
+
+function setupVerificationLookupSheet(ss) {
+  let sheet = ss.getSheetByName(VERIFICATION_LOOKUP_SHEET);
+  const isNew = !sheet;
+
+  if (sheet) {
+    if (sheet.getLastRow() > 2) {
+      sheet.getRange(3, 1, sheet.getLastRow() - 2, VERIFICATION_LOOKUP_DATA_COLS).clearContent();
+    }
+    sheet.getRange(1, 4).clearContent();
+  } else {
+    sheet = ss.insertSheet(VERIFICATION_LOOKUP_SHEET);
+    sheet.getRange(1, 1).setValue('Lookup (Tag or Serial):').setFontWeight('bold');
+    sheet.getRange(1, 3).setValue('Status:').setFontWeight('bold');
+    sheet.getRange(2, 1, 1, VERIFICATION_LOOKUP_DATA_COLS)
+      .setValues([VERIFICATION_LOOKUP_HEADERS]).setFontWeight('bold');
+    sheet.setFrozenRows(2);
+    // Column widths serve double-duty: row 1 labels/input AND row 3+ data.
+    sheet.setColumnWidth(1, 170); // Date / "Lookup (Tag or Serial):"
+    sheet.setColumnWidth(2, 220); // Result / paste input
+    sheet.setColumnWidth(3, 130); // Method / "Status:"
+    sheet.setColumnWidth(4, 320); // Location / status text
+    sheet.setColumnWidth(5, 140); // Room
+    sheet.setColumnWidth(6, 200); // Verified By
+    sheet.setColumnWidth(7, 320); // Comments
+    sheet.setTabColor('#f1663c');
+  }
+
+  // Status field spans D1:F1 so long asset summaries + verification counts
+  // have room to render. Idempotent — safe on re-run.
+  sheet.getRange('D1:F1').merge();
+
+  if (isNew || !sheet.getRange(1, 2).getValue()) {
+    sheet.getRange(3, 1).setValue('← Paste or type an Asset Tag or Serial Number in B1 to load verification history.');
+  }
+
+  installVerificationLookupTrigger(ss);
+}
+
+/**
+ * Installable onEdit handler. Fires on every edit in the spreadsheet — must
+ * guard tightly by sheet + cell before doing any work.
+ */
+function onEditVerificationLookup(e) {
+  if (!e || !e.range) return;
+  const range = e.range;
+  if (range.getSheet().getName() !== VERIFICATION_LOOKUP_SHEET) return;
+  if (range.getRow() !== 1 || range.getColumn() !== 2) return;
+
+  const ss = range.getSheet().getParent();
+  const sheet = range.getSheet();
+  const input = (e.value || range.getValue() || '').toString().trim();
+
+  sheet.getRange(1, 4).setValue('Loading…');
+  if (sheet.getLastRow() > 2) {
+    sheet.getRange(3, 1, sheet.getLastRow() - 2, VERIFICATION_LOOKUP_DATA_COLS).clearContent();
+  }
+
+  if (!input) {
+    sheet.getRange(1, 4).clearContent();
+    sheet.getRange(3, 1).setValue('← Paste or type an Asset Tag or Serial Number in B1 to load verification history.');
+    return;
+  }
+
+  try {
+    const asset = resolveAssetByTagOrSerial(ss, input);
+    if (!asset) {
+      sheet.getRange(1, 4).setValue('Not found in AssetData. Check spelling or refresh data.');
+      sheet.getRange(3, 1).setValue('No asset matched "' + input + '" by AssetTag or SerialNumber.');
+      return;
+    }
+
+    const response = getAssetVerifications(asset.assetId);
+    const items = (response && response.Items) || [];
+
+    if (items.length === 0) {
+      sheet.getRange(1, 4).setValue(formatAssetSummary(asset) + ' — 0 verifications');
+      sheet.getRange(3, 1).setValue('No verification records found for this asset.');
+      return;
+    }
+
+    const locationMap = buildLocationMap(ss);
+    const userMap = resolveVerifierNames(items);
+    const roomMap = resolveRoomNames(items);
+
+    const rows = items
+      .map(item => parseVerificationRow(item, locationMap, userMap, roomMap))
+      .filter(row => row !== null);
+
+    rows.sort((a, b) => (b[0] > a[0] ? 1 : b[0] < a[0] ? -1 : 0));
+    sheet.getRange(3, 1, rows.length, VERIFICATION_LOOKUP_DATA_COLS).setValues(rows);
+
+    sheet.getRange(1, 4).setValue(`${formatAssetSummary(asset)} — ${rows.length} verification${rows.length === 1 ? '' : 's'} — ${new Date().toLocaleString()}`);
+  } catch (err) {
+    sheet.getRange(1, 4).setValue('Error: ' + (err.message || err));
+    sheet.getRange(3, 1).setValue('Failed to fetch verification history. See Logs sheet for details.');
+    try { logOperation('VerificationLookup', 'ERROR', (err.message || err).toString().substring(0, 200)); } catch (_) {}
+  }
+}
+
+/**
+ * Resolve a paste/typed value to an asset by AssetTag (col B) or SerialNumber
+ * (col D). Returns { assetId, tag, serial, model, location } or null.
+ */
+function resolveAssetByTagOrSerial(ss, input) {
+  const assetData = ss.getSheetByName('AssetData');
+  if (!assetData || assetData.getLastRow() < 2) return null;
+  const needle = input.toString().trim().toLowerCase();
+  if (!needle) return null;
+  // Columns A-I: AssetId, AssetTag, Name, SerialNumber, ModelName,
+  // ManufacturerName, CategoryName, LocationId, LocationName.
+  const rows = assetData.getRange(2, 1, assetData.getLastRow() - 1, 9).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    const tag = rows[i][1];
+    const serial = rows[i][3];
+    const tagMatch = tag && tag.toString().toLowerCase() === needle;
+    const serialMatch = serial && serial.toString().toLowerCase() === needle;
+    if (tagMatch || serialMatch) {
+      return {
+        assetId: rows[i][0],
+        tag: tag,
+        serial: serial,
+        model: rows[i][4],
+        location: rows[i][8]
+      };
+    }
+  }
+  return null;
+}
+
+function formatAssetSummary(asset) {
+  const parts = [];
+  if (asset.tag) parts.push('Tag: ' + asset.tag);
+  if (asset.serial) parts.push('Serial: ' + asset.serial);
+  if (asset.model) parts.push(asset.model);
+  if (asset.location) parts.push(asset.location);
+  return parts.join(' / ');
+}
+
+/**
+ * Resolve room UUIDs to names via GET /v2.0/locations/rooms/{roomId}, one
+ * call per unique room. Returns { roomId: name } map; falls back to UUID on
+ * miss. The endpoint returns { Item: LocationRoom } — LocationRoom has Name.
+ */
+function resolveRoomNames(items) {
+  const map = {};
+  const uniqueIds = {};
+  items.forEach(item => {
+    const id = item && item.LocationRoomId;
+    if (id) uniqueIds[id] = true;
+  });
+  Object.keys(uniqueIds).forEach(roomId => {
+    const response = getLocationRoomById(roomId);
+    const room = (response && response.Item) || response;
+    if (room && room.Name) {
+      map[roomId] = room.Name;
+    } else {
+      map[roomId] = roomId;
+    }
+  });
+  return map;
+}
+
+/**
+ * Resolve verifier UUIDs to names via GET /users/{userId}, one call per
+ * unique verifier. Returns { userId: name } map; falls back to UUID on miss.
+ *
+ * The endpoint returns { Item: UserDetail } — UserDetail has Name (required),
+ * FirstName, LastName. Older shapes may return the user object directly.
+ */
+function resolveVerifierNames(items) {
+  const map = {};
+  const uniqueIds = {};
+  items.forEach(item => {
+    const id = item && item.VerifiedByUserId;
+    if (id) uniqueIds[id] = true;
+  });
+  Object.keys(uniqueIds).forEach(userId => {
+    const response = getUserById(userId);
+    const user = (response && response.Item) || response;
+    if (user && (user.Name || user.FirstName || user.LastName)) {
+      const composed = ((user.FirstName || '') + ' ' + (user.LastName || '')).trim();
+      map[userId] = user.Name || composed || userId;
+    } else {
+      map[userId] = userId;
+    }
+  });
+  return map;
+}
+
+function parseVerificationRow(item, locationMap, userMap, roomMap) {
+  if (!item) return null;
+  const result = item.IsSuccessful ? 'Pass' : 'Fail';
+  const location = item.LocationId ? (locationMap[item.LocationId] || item.LocationId) : '';
+  const room = item.LocationRoomId
+    ? ((roomMap && roomMap[item.LocationRoomId]) || item.LocationRoomId)
+    : '';
+  const verifier = item.VerifiedByUserId
+    ? (userMap[item.VerifiedByUserId] || item.VerifiedByUserId)
+    : '';
+  return [
+    item.CreatedDate || '',
+    result,
+    item.AssetVerificationTypeId || '',
+    location,
+    room,
+    verifier,
+    item.Comments || ''
+  ];
+}
+
+function installVerificationLookupTrigger(ss) {
+  const existing = ScriptApp.getProjectTriggers()
+    .some(t => t.getHandlerFunction() === VERIFICATION_LOOKUP_HANDLER);
+  if (existing) return;
+  ScriptApp.newTrigger(VERIFICATION_LOOKUP_HANDLER)
+    .forSpreadsheet(ss)
+    .onEdit()
+    .create();
+  try { logOperation('VerificationLookup', 'SETUP', 'Installed onEdit trigger'); } catch (_) {}
+}
+
+function removeVerificationLookupTrigger() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === VERIFICATION_LOOKUP_HANDLER) {
+      ScriptApp.deleteTrigger(t);
+      removed++;
+    }
+  });
+  return removed;
+}
+
+// =============================================================================
 // CATEGORY REGENERATION FUNCTIONS
 // Per-category regeneration: defaults always rebuild, optionals only if installed.
 // =============================================================================
@@ -800,10 +1081,11 @@ function regenerateFleetComposition(ss) {
   return count;
 }
 
-function regeneratePeople(ss) {
-  // Optional only — no People defaults yet.
+function regenerateLookups(ss) {
+  // Optional only — no Lookup defaults.
   let count = 0;
   [['IndividualLookup', setupIndividualLookupSheet],
+   ['VerificationLookup', setupVerificationLookupSheet],
   ].forEach(([name, fn]) => { if (ss.getSheetByName(name)) { fn(ss); count++; } });
   return count;
 }
@@ -841,6 +1123,7 @@ function regenerateAllAnalytics(ss) {
     ['CategoryBreakdown', setupCategoryBreakdownSheet],
     ['ManufacturerSummary', setupManufacturerSummarySheet],
     ['IndividualLookup', setupIndividualLookupSheet],
+    ['VerificationLookup', setupVerificationLookupSheet],
   ];
 
   let optCount = 0;

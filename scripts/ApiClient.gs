@@ -163,3 +163,41 @@ function getUserActivities(userId, pageSize) {
   return makeApiRequest(`/v1.0/users/${userId}/activities?$p=0&$s=${size}`, 'GET');
 }
 
+/**
+ * Get all verification records for one asset.
+ * @param {string} assetId - Asset UUID
+ * @param {number} pageSize - Optional page size (default 500)
+ * @returns {Object} - { Items, Paging }
+ */
+function getAssetVerifications(assetId, pageSize) {
+  const size = pageSize || 500;
+  return makeApiRequest(`/v1.0/assets/${assetId}/verifications?$p=0&$s=${size}`, 'GET');
+}
+
+/**
+ * Get a single user by ID. Used to resolve verifier names in VerificationLookup.
+ * @param {string} userId - User UUID
+ * @returns {Object} - User object or null on 404
+ */
+function getUserById(userId) {
+  try {
+    return makeApiRequest(`/v1.0/users/${userId}`, 'GET');
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Get a single location room by ID. Used to resolve room names in
+ * VerificationLookup. Returns the response envelope `{ Item: LocationRoom }`.
+ * @param {string} roomId - LocationRoom UUID
+ * @returns {Object} - Response envelope or null on 404
+ */
+function getLocationRoomById(roomId) {
+  try {
+    return makeApiRequest(`/v2.0/locations/rooms/${roomId}`, 'GET');
+  } catch (err) {
+    return null;
+  }
+}
+
