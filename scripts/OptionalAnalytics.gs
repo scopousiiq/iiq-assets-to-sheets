@@ -581,10 +581,15 @@ function setupIndividualLookupSheet(ss) {
     sheet.setTabColor('#f1663c');
   }
 
-  // Column Z: sorted unique owner names, sourced from AssetData.
-  // Used as the dropdown source. Hidden for a clean UI.
+  // Column Z: sorted unique "Name (email)" strings, sourced from AssetData.
+  // Used as the dropdown source. Hidden for a clean UI. Format is
+  //   "FullName (email@example.com)" when AssetData col AB has an email,
+  //   else just "FullName" — resolveOwnerIdByName parses both shapes.
   sheet.getRange(1, 26).setFormula(
-    '=IFERROR(SORT(UNIQUE(FILTER(AssetData!L2:L, AssetData!L2:L<>""))), "")'
+    '=IFERROR(SORT(UNIQUE(FILTER(' +
+      'IF(AssetData!AB2:AB<>"", AssetData!L2:L & " (" & AssetData!AB2:AB & ")", AssetData!L2:L), ' +
+      'AssetData!L2:L<>""' +
+    '))), "")'
   );
   sheet.hideColumns(26);
 
@@ -666,11 +671,33 @@ function onEditIndividualLookup(e) {
   }
 }
 
-function resolveOwnerIdByName(ss, name) {
+/**
+ * Resolve a dropdown selection to an OwnerId. Accepts either a bare name
+ * ("Jane Doe") or the "Name (email)" format produced by setupIndividualLookupSheet.
+ * Tries email-match first when an email is parsed (more specific), then name.
+ */
+function resolveOwnerIdByName(ss, displayValue) {
   const assetData = ss.getSheetByName('AssetData');
   if (!assetData || assetData.getLastRow() < 2) return null;
-  // Columns K=OwnerId (11), L=OwnerFullName (12). Read both as a single range for speed.
-  const values = assetData.getRange(2, 11, assetData.getLastRow() - 1, 2).getValues();
+
+  const value = (displayValue || '').toString().trim();
+  if (!value) return null;
+
+  // Parse "Name (email@x.com)" → { name, email }. Falls back to just name.
+  let name = value;
+  let email = '';
+  const m = value.match(/^(.+) \(([^)]+)\)$/);
+  if (m) { name = m[1].trim(); email = m[2].trim(); }
+
+  // Read K (OwnerId, col 11) through AB (OwnerEmail, col 28) in one call.
+  const values = assetData.getRange(2, 11, assetData.getLastRow() - 1, 18).getValues();
+  // Offsets: 0=OwnerId, 1=OwnerFullName, 17=OwnerEmail.
+
+  if (email) {
+    for (let i = 0; i < values.length; i++) {
+      if (values[i][17] === email && values[i][0]) return values[i][0];
+    }
+  }
   for (let i = 0; i < values.length; i++) {
     if (values[i][1] === name && values[i][0]) return values[i][0];
   }

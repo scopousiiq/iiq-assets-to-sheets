@@ -240,18 +240,24 @@ function computeKpis_(rows) {
 // ApiClient.gs (those are global functions in Apps Script).
 // =============================================================================
 
-/** Returns sorted unique list of OwnerFullName from AssetData, for the
- *  Individual Lookup dropdown. */
+/** Returns sorted unique "Name (email)" strings from AssetData, for the
+ *  Individual Lookup dropdown. Format matches the in-sheet column Z source.
+ *  resolveOwnerIdByName parses this back to a row match. */
 function dashboardGetOwnerNames() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const assetData = ss.getSheetByName('AssetData');
   if (!assetData || assetData.getLastRow() < 2) return [];
-  // Col 12 = OwnerFullName (1-indexed for getRange).
-  const values = assetData.getRange(2, 12, assetData.getLastRow() - 1, 1).getValues();
+  // Read L (OwnerFullName, col 12) through AB (OwnerEmail, col 28) — 17 cols.
+  const lastRow = assetData.getLastRow();
+  const values = assetData.getRange(2, 12, lastRow - 1, 17).getValues();
+  // Offsets: 0=OwnerFullName, 16=OwnerEmail.
   const seen = {};
   for (let i = 0; i < values.length; i++) {
     const name = values[i][0];
-    if (name) seen[name] = true;
+    if (!name) continue;
+    const email = values[i][16];
+    const display = email ? (name + ' (' + email + ')') : name;
+    seen[display] = true;
   }
   return Object.keys(seen).sort();
 }

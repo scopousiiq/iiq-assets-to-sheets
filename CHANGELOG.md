@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ---
 
+## v1.5.1 — Email in Individual Lookup dropdown (2026-05-07)
+
+### Changed
+- **Individual Lookup dropdown** now displays `Name (email)` instead of just `Name` — disambiguates same-name users (which is common in larger districts). Applies to both the in-sheet `IndividualLookup` (column Z dropdown source) and the dashboard's **Individual** tab.
+- `resolveOwnerIdByName` now parses the `Name (email)` format and matches by email first (more specific), falling back to name. Users without an email in AssetData fall back to the bare-name format and continue to work unchanged.
+
+### Upgrade Notes
+1. Update `scripts/OptionalAnalytics.gs` and `scripts/Dashboard.gs` from the repo (or copy the updated master template).
+2. Regenerate the IndividualLookup sheet via **iiQ Assets > Analytics Sheets > Lookups > Individual Lookup** so column Z picks up the new formula.
+3. For the dashboard: **Deploy → Manage deployments → Edit → New version** to publish, then refresh the Individual tab.
+
+---
+
 ## v1.5.0 — Web app dashboard, audit verification, room granularity (2026-05-07)
 
 A major release combining a new built-in web-app dashboard, asset audit verification history, room-level granularity in inventory and cross-tab analytics, and a handful of API extraction fixes.

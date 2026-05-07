@@ -1,6 +1,6 @@
 {
-  "version": "1.5.0",
+  "version": "1.5.1",
   "released": "2026-05-07",
   "releaseUrl": "https://github.com/scopousiiq/iiq-assets-to-sheets/releases/latest",
-  "message": "Major release: built-in web-app dashboard (Chart.js, 19 charts + 2 interactive lookup tabs, 4 KPI cards), VerificationLookup sheet with audit history, UnassignedInventory and LocationModelBreakdown gain Room dimension. Two-step upgrade: (1) update .gs/.html files, (2) Deploy → New deployment → Web app, paste URL into DASHBOARD_URL Config row. View via iiQ Assets > Setup > Show Dashboard URL."
+  "message": "Individual Lookup dropdown now displays 'Name (email)' so same-name users can be disambiguated. Applies to both the in-sheet IndividualLookup and the dashboard Individual tab. Regenerate the IndividualLookup sheet to refresh the dropdown source, and Manage Deployments → New version to update the dashboard."
 }
