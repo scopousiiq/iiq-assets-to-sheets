@@ -127,29 +127,60 @@ function getDateString(val) {
 // CONFIG WRITE (with row cache for performance)
 // =============================================================================
 
+// Key -> 1-indexed Config row. Without it, every write re-reads the whole sheet;
+// the asset load loop writes a checkpoint per page, so that cost is on the hot
+// path. Lives for one script execution.
+//
+// INVARIANT: anything that inserts, deletes, or reorders Config rows must call
+// resetConfigCache() afterwards, or writes will land on the wrong row. Appending
+// at the bottom is safe without a reset — setConfigValue detects the miss and
+// rebuilds. Duplicate keys resolve to the last row, matching getConfig().
 let configRowCache_ = null;
 
+/**
+ * Populate the row cache if it isn't already warm.
+ * @returns {boolean} - true if this call read the sheet, false if already warm
+ */
 function cacheConfigRowPositions_() {
-  if (configRowCache_) return;
+  if (configRowCache_) return false;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
   const data = sheet.getDataRange().getValues();
   configRowCache_ = {};
   data.forEach((row, i) => { configRowCache_[row[0]] = i + 1; });
+  return true;
 }
 
+/**
+ * Write a single Config row's value. Creates the row if missing.
+ *
+ * Values are stringified so a Date or number can't land as a typed cell that
+ * getStringValue() then has to reinterpret.
+ */
 function setConfigValue(key, value) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
   if (!sheet) return;
 
-  cacheConfigRowPositions_();
-  const row = configRowCache_[key];
+  const freshlyRead = cacheConfigRowPositions_();
+  let row = configRowCache_[key];
+
+  // A miss against a cache we didn't just build means either the key genuinely
+  // isn't on the sheet, or the cache predates a row someone else appended.
+  // Rebuild before appending: appending a key that already has a row would
+  // leave two rows for it, and getConfig() would silently read the later one.
+  if (!row && !freshlyRead) {
+    resetConfigCache();
+    cacheConfigRowPositions_();
+    row = configRowCache_[key];
+  }
+
   if (row) {
     sheet.getRange(row, 2).setValue(String(value));
-  } else {
-    const lastRow = sheet.getLastRow();
-    sheet.getRange(lastRow + 1, 1, 1, 2).setValues([[key, String(value)]]);
-    configRowCache_[key] = lastRow + 1;
+    return;
   }
+
+  const lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow + 1, 1, 1, 2).setValues([[key, String(value)]]);
+  configRowCache_[key] = lastRow + 1;
 }
 
 function resetConfigCache() {
@@ -361,22 +392,6 @@ function isVersionCheckStale() {
   } catch (e) {
     return false;
   }
-}
-
-/**
- * Write a single Config row's value. Creates the row if missing.
- */
-function setConfigValue(key, value) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
-  if (!sheet) return;
-  const data = sheet.getDataRange().getValues();
-  for (let i = 0; i < data.length; i++) {
-    if (data[i][0] === key) {
-      sheet.getRange(i + 1, 2).setValue(value);
-      return;
-    }
-  }
-  sheet.appendRow([key, value]);
 }
 
 /**
