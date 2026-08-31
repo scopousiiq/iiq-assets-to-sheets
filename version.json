@@ -1,6 +1,6 @@
 {
-  "version": "1.5.1",
-  "released": "2026-05-07",
+  "version": "1.5.2",
+  "released": "2026-05-13",
   "releaseUrl": "https://github.com/scopousiiq/iiq-assets-to-sheets/releases/latest",
-  "message": "Individual Lookup dropdown now displays 'Name (email)' so same-name users can be disambiguated. Applies to both the in-sheet IndividualLookup and the dashboard Individual tab. Regenerate the IndividualLookup sheet to refresh the dropdown source, and Manage Deployments → New version to update the dashboard."
+  "message": "AssetData now includes FundingSourceName and four LastVerification columns (Date, Type, Location, Success) pulled directly from the asset search payload. AssetData widens from 33 to 38 columns; formula columns AgeDays/AgeYears/WarrantyStatus shift from AE-AG to AJ-AL. Run Setup Spreadsheet (destructive) or Full Reload to rebuild AssetData with the new layout. Manage Deployments → New version to update the dashboard."
 }

@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 
 ---
 
+## v1.5.2 — Funding source and last verification columns (2026-05-13)
+
+### Added
+- **AssetData** gains five new API-sourced columns extracted directly from the existing `/v1.0/assets` search payload (no new endpoints):
+  - `AE` — `FundingSourceName` from `FundingSource.Name`
+  - `AF` — `LastVerificationDate` from `LastVerificationDateTime` (formatted yyyy-MM-dd)
+  - `AG` — `LastVerificationType` from `LastVerificationTypeName`
+  - `AH` — `LastVerificationLocation` from `LastVerificationLocationName`
+  - `AI` — `LastVerificationSuccess` from `LastVerificationSuccessful` (boolean)
+
+### Changed
+- **AssetData column layout** (35 API cols + 3 formula cols = 38 total; was 30 + 3 = 33):
+  - Formula columns shifted by 5: `AgeDays` is now `AJ` (was `AE`), `AgeYears` is now `AK` (was `AF`), `WarrantyStatus` is now `AL` (was `AG`).
+- All analytics formulas updated accordingly (`AssetData!AF:AF` → `AssetData!AK:AK`, `AssetData!AG:AG` → `AssetData!AL:AL`, etc.) across `Setup.gs` and `OptionalAnalytics.gs`.
+- `Dashboard.gs` `DASH_COL` offsets updated: `AGE_YEARS` 31 → 36, `WARRANTY_STATUS` 32 → 37.
+- `scripts/Config.gs` `SCRIPT_VERSION` → `1.5.2`.
+- Instructions sheet and CLAUDE.md / README.md / GUIDE.md column-layout tables updated to the 38-column layout.
+
+### Upgrade Notes
+1. **Save your `BEARER_TOKEN`** from the Config sheet before proceeding.
+2. Remove automated triggers: **iiQ Assets > Setup > Remove Automated Triggers**.
+3. Update all `.gs` files from the `scripts/` directory.
+4. Run **iiQ Assets > Setup > Setup Spreadsheet** (destructive: recreates all sheets with the 38-column layout and correct headers).
+5. Paste your `BEARER_TOKEN` back into the Config sheet.
+6. Run **iiQ Assets > Asset Data > Full Reload** to repopulate AssetData in the new 38-column layout.
+7. Run **iiQ Assets > Setup > Setup Automated Triggers** to restore automation.
+8. For the dashboard: **Deploy → Manage deployments → Edit → New version** to publish the updated `DASH_COL` offsets.
+
+---
+
 ## v1.5.1 — Email in Individual Lookup dropdown (2026-05-07)
 
 ### Changed

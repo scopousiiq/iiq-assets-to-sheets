@@ -164,14 +164,41 @@ function getUserActivities(userId, pageSize) {
 }
 
 /**
- * Get all verification records for one asset.
+ * Get all verification records for one asset. Paginates through every page
+ * and returns the aggregated set in the standard list-response envelope.
+ *
+ * Sorted by CreatedDate asc so records inserted while we're paginating
+ * land on the tail (stable per the workspace pagination rule).
+ *
  * @param {string} assetId - Asset UUID
- * @param {number} pageSize - Optional page size (default 500)
- * @returns {Object} - { Items, Paging }
+ * @param {number} pageSize - Page size per request (default 500)
+ * @returns {Object} - { Items, ItemCount, Paging } where Items spans all pages
  */
 function getAssetVerifications(assetId, pageSize) {
   const size = pageSize || 500;
-  return makeApiRequest(`/v1.0/assets/${assetId}/verifications?$p=0&$s=${size}`, 'GET');
+  const sort = encodeURIComponent('CreatedDate asc');
+  const MAX_PAGES = 100; // safety cap: 50k verifications at default size
+  const allItems = [];
+  let lastPaging = null;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const response = makeApiRequest(
+      `/v1.0/assets/${assetId}/verifications?$p=${page}&$s=${size}&$o=${sort}`,
+      'GET'
+    );
+    const items = (response && response.Items) || [];
+    if (items.length === 0) break;
+    allItems.push.apply(allItems, items);
+    lastPaging = response && response.Paging;
+    if (items.length < size) break;
+    if (lastPaging && typeof lastPaging.TotalPages === 'number' && page + 1 >= lastPaging.TotalPages) break;
+  }
+
+  return {
+    Items: allItems,
+    ItemCount: allItems.length,
+    Paging: lastPaging || { PageIndex: 0, PageSize: size, TotalCount: allItems.length, TotalPages: 1 }
+  };
 }
 
 /**
