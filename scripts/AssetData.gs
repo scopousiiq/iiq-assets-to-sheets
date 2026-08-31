@@ -4,7 +4,7 @@
  * Loads assets via paginated search with checkpoint resume.
  * Supports incremental refresh via ModifiedDate filter.
  *
- * Column layout (38 columns, A-AL):
+ * Column layout (43 columns, A-AQ):
  *   A  AssetId            K  OwnerId
  *   B  AssetTag           L  OwnerFullName
  *   C  Name               M  StatusName
@@ -33,6 +33,11 @@
  *                         AJ AgeDays (formula)
  *                         AK AgeYears (formula)
  *                         AL WarrantyStatus (formula)
+ *                         AM-AQ CustomField1-5 (optional, see CustomFields.gs)
+ *
+ * The custom field block sits after the formula columns on purpose: appending
+ * leaves every analytics formula and dashboard column offset valid, so an
+ * existing sheet upgrades by gaining headers rather than being rebuilt.
  */
 
 const ASSET_HEADERS = [
@@ -51,10 +56,19 @@ const ASSET_HEADERS = [
   'FundingSourceName',
   'LastVerificationDate', 'LastVerificationType',
   'LastVerificationLocation', 'LastVerificationSuccess',
-  'AgeDays', 'AgeYears', 'WarrantyStatus'
+  'AgeDays', 'AgeYears', 'WarrantyStatus',
+  // Optional custom field columns — empty until a CUSTOM_FIELD_n slot is set on
+  // the Config sheet. Adding a slot means adding a header here; the slot count
+  // and the Config rows are both derived from this list.
+  'CustomField1', 'CustomField2', 'CustomField3', 'CustomField4', 'CustomField5'
 ];
-const ASSET_DATA_COLS = 35;  // Columns A-AI (API data)
-const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 38 (includes formula columns)
+
+const ASSET_DATA_COLS = 35;                // Columns A-AI (API data)
+const ASSET_FORMULA_START_COL = 36;        // AJ — first ARRAYFORMULA column
+const ASSET_CUSTOM_FIELD_START_COL = 39;   // AM — first custom field column
+const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 43 (API + formula + custom fields)
+const ASSET_CUSTOM_FIELD_HEADERS = ASSET_HEADERS.slice(ASSET_CUSTOM_FIELD_START_COL - 1);
+const ASSET_CUSTOM_FIELD_COUNT = ASSET_CUSTOM_FIELD_HEADERS.length;
 const MAX_RUNTIME_MS = 5.5 * 60 * 1000;
 
 // =============================================================================
@@ -78,6 +92,11 @@ function loadAssetData(showUI) {
   if (config.assetLastPage < 0) {
     ensureReferenceData(ss);
   }
+
+  // Resolved once per run, not per asset: at most one definitions call and one
+  // locations sweep regardless of how many pages this run gets through.
+  const cfContext = buildAssetCustomFieldContext(config);
+  if (cfContext) ensureAssetCustomFieldColumns(sheet);
 
   const startTime = Date.now();
   let currentPage = config.assetLastPage + 1;
@@ -112,6 +131,13 @@ function loadAssetData(showUI) {
     if (rows.length > 0) {
       const lastRow = Math.max(sheet.getLastRow(), 1);
       sheet.getRange(lastRow + 1, 1, rows.length, ASSET_DATA_COLS).setValues(rows);
+      if (cfContext) {
+        // Written as a separate block: the formula columns sit between the API
+        // data and the custom fields, and must not be overwritten with values.
+        const cfRows = response.Items.map(asset => extractAssetCustomFieldRow(asset, cfContext));
+        sheet.getRange(lastRow + 1, ASSET_CUSTOM_FIELD_START_COL, cfRows.length, ASSET_CUSTOM_FIELD_COUNT)
+          .setValues(cfRows);
+      }
       totalRowsWritten += rows.length;
     }
 
@@ -159,6 +185,9 @@ function refreshAssetData(showUI) {
   const sinceDate = config.lastRefreshDate;
   if (!sinceDate) return 'no_refresh_date';
 
+  const cfContext = buildAssetCustomFieldContext(config);
+  if (cfContext) ensureAssetCustomFieldColumns(sheet);
+
   const startTime = Date.now();
   const lastRow = sheet.getLastRow();
 
@@ -177,8 +206,9 @@ function refreshAssetData(showUI) {
   cacheConfigRowPositions_();
 
   let page = 0;
-  const updates = []; // [{row, data}]
+  const updates = []; // [{row, data, customFields}]
   const newRows = [];
+  const newCustomFieldRows = []; // parallel to newRows
 
   while (Date.now() - startTime < MAX_RUNTIME_MS) {
     const response = searchAssets(filters, page, config.assetBatchSize, { field: 'AssetModifiedDate', direction: 'asc' });
@@ -186,12 +216,14 @@ function refreshAssetData(showUI) {
 
     response.Items.forEach(asset => {
       const row = extractAssetRow(asset);
+      const customFields = cfContext ? extractAssetCustomFieldRow(asset, cfContext) : null;
       const assetId = asset.AssetId || '';
       const existingRow = idToRow[assetId];
       if (existingRow) {
-        updates.push({ row: existingRow, data: row });
+        updates.push({ row: existingRow, data: row, customFields: customFields });
       } else if (assetId) {
         newRows.push(row);
+        if (cfContext) newCustomFieldRows.push(customFields);
         idToRow[assetId] = lastRow + newRows.length; // track for dedup within run
       }
     });
@@ -207,12 +239,20 @@ function refreshAssetData(showUI) {
   // Write updates in-place
   updates.forEach(u => {
     sheet.getRange(u.row, 1, 1, ASSET_DATA_COLS).setValues([u.data]);
+    if (u.customFields) {
+      sheet.getRange(u.row, ASSET_CUSTOM_FIELD_START_COL, 1, ASSET_CUSTOM_FIELD_COUNT)
+        .setValues([u.customFields]);
+    }
   });
 
   // Append new rows
   if (newRows.length > 0) {
     const appendStart = sheet.getLastRow() + 1;
     sheet.getRange(appendStart, 1, newRows.length, ASSET_DATA_COLS).setValues(newRows);
+    if (newCustomFieldRows.length === newRows.length) {
+      sheet.getRange(appendStart, ASSET_CUSTOM_FIELD_START_COL, newCustomFieldRows.length, ASSET_CUSTOM_FIELD_COUNT)
+        .setValues(newCustomFieldRows);
+    }
   }
 
   // Update refresh timestamp
@@ -283,6 +323,27 @@ function extractAssetRow(asset) {
   ];
 }
 
+/**
+ * Grow AssetData's grid to the full column layout. A newly inserted sheet, and
+ * any sheet created before a column was added, is narrower than
+ * ASSET_TOTAL_COLS — and getRange() throws past the grid edge rather than
+ * growing it.
+ */
+function ensureAssetGridWidth_(sheet) {
+  if (!sheet) return;
+  const maxCols = sheet.getMaxColumns();
+  if (maxCols < ASSET_TOTAL_COLS) sheet.insertColumnsAfter(maxCols, ASSET_TOTAL_COLS - maxCols);
+}
+
+/**
+ * How many columns of AssetData are safe to address. A sheet created before the
+ * custom field columns existed is narrower than ASSET_TOTAL_COLS, and a
+ * full-width range on it throws instead of growing the grid.
+ */
+function assetGridWidth_(sheet) {
+  return Math.min(sheet.getMaxColumns(), ASSET_TOTAL_COLS);
+}
+
 function formatDate(val) {
   if (!val) return '';
   const d = new Date(val);
@@ -301,7 +362,7 @@ function clearAssetDataAndReset() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('AssetData');
   if (sheet && sheet.getLastRow() > 1) {
-    sheet.getRange(2, 1, sheet.getLastRow() - 1, ASSET_TOTAL_COLS).clearContent();
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, assetGridWidth_(sheet)).clearContent();
   }
 
   resetConfigCache();
@@ -327,29 +388,40 @@ function deduplicateAssetData() {
 
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return 0;
+  const numRows = lastRow - 1;
 
-  // Read all data columns (API data only, not formula columns)
-  const allData = sheet.getRange(2, 1, lastRow - 1, ASSET_DATA_COLS).getValues();
+  // API data and custom fields are read as two blocks. The formula columns sit
+  // between them and are reapplied afterwards rather than carried across.
+  const hasCustomFields = sheet.getMaxColumns() >= ASSET_TOTAL_COLS;
+  const allData = sheet.getRange(2, 1, numRows, ASSET_DATA_COLS).getValues();
+  const allCustomFields = hasCustomFields
+    ? sheet.getRange(2, ASSET_CUSTOM_FIELD_START_COL, numRows, ASSET_CUSTOM_FIELD_COUNT).getValues()
+    : null;
 
   // Walk backwards: keep last occurrence of each AssetId (most up-to-date)
   const seen = new Set();
-  const uniqueRows = [];
+  const keptIndexes = [];
   for (let i = allData.length - 1; i >= 0; i--) {
     const id = allData[i][0];
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    uniqueRows.push(allData[i]);
+    keptIndexes.push(i);
   }
 
-  const removed = allData.length - uniqueRows.length;
+  const removed = allData.length - keptIndexes.length;
   if (removed === 0) return 0;
 
   // Reverse to restore original order (we walked backwards)
-  uniqueRows.reverse();
+  keptIndexes.reverse();
+  const uniqueRows = keptIndexes.map(i => allData[i]);
 
   // Clear all data rows and write back deduplicated set in one batch
-  sheet.getRange(2, 1, lastRow - 1, ASSET_TOTAL_COLS).clearContent();
+  sheet.getRange(2, 1, numRows, assetGridWidth_(sheet)).clearContent();
   sheet.getRange(2, 1, uniqueRows.length, ASSET_DATA_COLS).setValues(uniqueRows);
+  if (allCustomFields) {
+    sheet.getRange(2, ASSET_CUSTOM_FIELD_START_COL, uniqueRows.length, ASSET_CUSTOM_FIELD_COUNT)
+      .setValues(keptIndexes.map(i => allCustomFields[i]));
+  }
 
   // Reapply formulas to cover the deduplicated rows
   applyAssetFormulas();

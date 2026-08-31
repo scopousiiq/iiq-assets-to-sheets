@@ -11,6 +11,7 @@ function setupSpreadsheet() {
   setupLocationsSheet(ss);
   setupStatusTypesSheet(ss);
   setupLocationEnrollmentSheet(ss);
+  setupCustomFieldsSheet(ss);
   setupLogsSheet(ss);
   setupInstructionsSheet(ss);
 
@@ -101,9 +102,10 @@ function setupConfigSheet(ss) {
     ['', ''],
     ['--- Telemetry (required for automated polling) ---', ''],
     ['TELEMETRY_ENABLED', 'TRUE'],
-  ];
+  ].concat(buildCustomFieldConfigRows_());
 
   sheet.getRange(2, 1, configRows.length, 2).setValues(configRows);
+  annotateCustomFieldConfigCells_(sheet);
   sheet.setColumnWidth(1, 250);
   sheet.setColumnWidth(2, 400);
   sheet.setTabColor('#febb12');
@@ -112,6 +114,7 @@ function setupConfigSheet(ss) {
 function setupAssetDataSheet(ss) {
   deleteSheetIfExists(ss, 'AssetData');
   const sheet = ss.insertSheet('AssetData');
+  ensureAssetGridWidth_(sheet);
 
   // Headers
   sheet.getRange(1, 1, 1, ASSET_TOTAL_COLS).setValues([ASSET_HEADERS]).setFontWeight('bold');
@@ -135,7 +138,7 @@ function applyAssetFormulas() {
 
   // Clear any existing per-row formulas in the formula columns before applying ARRAYFORMULAs
   const numRows = lastRow - 1;
-  sheet.getRange(2, 36, numRows, 3).clearContent();
+  sheet.getRange(2, ASSET_FORMULA_START_COL, numRows, 3).clearContent();
 
   // Column AJ (36): AgeDays — days since PurchasedDate (col N), falls back to CreatedDate (col Q)
   // Uses (N="")*(Q="") instead of AND() which doesn't work in ARRAYFORMULA
@@ -278,6 +281,41 @@ function setupInstructionsSheet(ss) {
     [''],                                                                                   // 72
     [''],                                                                                   // 73
     ['═══════════════════════════════════════════════════════════════════════════════'],      // 74
+    ['CUSTOM FIELDS (Optional)'],
+    ['═══════════════════════════════════════════════════════════════════════════════'],
+    [''],
+    ['Up to 5 of your district\'s asset custom fields can be pulled into AssetData as'],
+    ['columns AM-AQ (CustomField1-5). Values come from the same asset records already'],
+    ['being loaded, so this adds no meaningful load time.'],
+    [''],
+    ['1. LIST YOUR CUSTOM FIELDS'],
+    ['   • Menu: iiQ Assets > Setup > Refresh Custom Fields'],
+    ['   • Populates the CustomFields sheet with every asset custom field in iiQ'],
+    [''],
+    ['2. PICK THE FIELDS YOU WANT'],
+    ['   • On the CustomFields sheet, find the field and copy its CustomFieldTypeId (col B)'],
+    ['   • Paste it into CUSTOM_FIELD_1 (or _2 … _5) on the Config sheet'],
+    ['   • A field name also works, but ids are unambiguous — a district can define two'],
+    ['     different fields that share the same display name'],
+    [''],
+    ['3. BACKFILL THE COLUMN'],
+    ['   • Menu: iiQ Assets > Asset Data > Full Reload'],
+    ['   • New slots are only filled in for assets the script writes. Without a full'],
+    ['     reload, the column populates gradually as assets change.'],
+    [''],
+    ['CHECKING YOUR WORK: after the next load or refresh, CUSTOM_FIELD_n_ID on the'],
+    ['Config sheet shows the CustomFieldTypeId each slot resolved to, or NOT_FOUND if'],
+    ['the value was not recognized. The Logs sheet records the same outcome.'],
+    [''],
+    ['CHANGING A SLOT: the column keeps whatever the old field wrote until the rows are'],
+    ['rewritten. Change the slot, then run Full Reload so the whole column matches.'],
+    [''],
+    ['DROPDOWN AND MULTI-SELECT FIELDS: values are stored as ids in iiQ and translated'],
+    ['to their display names automatically. The same applies to fields that point at an'],
+    ['iiQ location.'],
+    [''],
+    [''],
+    ['═══════════════════════════════════════════════════════════════════════════════'],
     ['AUTOMATED TRIGGERS (Recommended)'],                                                   // 75
     ['═══════════════════════════════════════════════════════════════════════════════'],      // 76
     [''],                                                                                   // 77
@@ -318,7 +356,7 @@ function setupInstructionsSheet(ss) {
     [''],                                                                                   // 112
     ['DATA SHEETS (populated by scripts):'],                                                 // 113
     [''],                                                                                   // 114
-    ['• AssetData (38 columns: 35 from API + 3 calculated)'],                                // 115
+    ['• AssetData (43 columns: 35 from API + 3 calculated + 5 optional custom fields)'],     // 115
     ['  Main asset inventory. Columns:'],                                                    // 116
     ['  - Identity: AssetId, AssetTag, Name, SerialNumber'],                                 // 117
     ['  - Device: ModelName, ManufacturerName, CategoryName'],                               // 118
@@ -332,6 +370,7 @@ function setupInstructionsSheet(ss) {
     ['  - Service: OpenTickets'],                                                            // 126
     ['  - Verification: LastVerificationDate, LastVerificationType, LastVerificationLocation, LastVerificationSuccess'],
     ['  - Calculated: AgeDays, AgeYears, WarrantyStatus (ARRAYFORMULA columns)'],            // 127
+    ['  - Custom Fields: CustomField1-5 (columns AM-AQ, empty until configured — see below)'],
     [''],                                                                                   // 128
     ['  NOTE ON DEVICE AGE: AgeDays and AgeYears are calculated from PurchasedDate when'],   // 129
     ['  available. If PurchasedDate is empty (common when districts do not track purchase'],  // 130
@@ -350,6 +389,11 @@ function setupInstructionsSheet(ss) {
     ['  Columns: LocationId, LocationName, LocationType, TotalStudents,'],                   // 143
     ['  StudentsWithDevices, DeviceCoverage%.'],                                             // 144
     [''],                                                                                   // 145
+    ['• CustomFields'],
+    ['  Every asset custom field defined in your district (Name, CustomFieldTypeId,'],
+    ['  EditorType). Populated by Setup > Refresh Custom Fields. Copy a'],
+    ['  CustomFieldTypeId from here into a CUSTOM_FIELD_n row on the Config sheet.'],
+    [''],
     ['• Logs'],                                                                              // 146
     ['  Operation logs for troubleshooting. Auto-pruned to 500 rows.'],                      // 147
     [''],                                                                                   // 148
@@ -481,6 +525,7 @@ function setupInstructionsSheet(ss) {
     ['iiQ Assets > Setup'],                                                                  // 205
     ['  • Setup Spreadsheet — FULL RESET: deletes all sheets and recreates from scratch'],   // 206
     ['  • Verify Configuration — Check API settings and test connection'],                   // 207
+    ['  • Refresh Custom Fields — List your district\'s asset custom fields'],                // 207a
     ['  • Setup Automated Triggers — Create all recommended triggers'],                      // 208
     ['  • View Trigger Status — Show installed triggers'],                                   // 209
     ['  • Remove Automated Triggers — Remove all triggers (required before destructive ops)'], // 210
@@ -744,6 +789,7 @@ function setupInstructionsSheet(ss) {
   const sectionTitles = new Set([
     'OVERVIEW',
     'INITIAL SETUP',
+    'CUSTOM FIELDS (Optional)',
     'AUTOMATED TRIGGERS (Recommended)',
     'SHEETS REFERENCE',
     'MENU REFERENCE',

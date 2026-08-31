@@ -29,6 +29,7 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 | `OptionalAnalytics.gs` | Optional (non-default) analytics sheet setup functions |
 | `Menu.gs` | "iiQ Assets" menu, UI entry points, category submenus |
 | `Triggers.gs` | Time-driven functions, trigger management |
+| `CustomFields.gs` | Asset custom fields: slot resolution, value extraction, `CustomFields` sheet, Config migration |
 | `Telemetry.gs` | Canonical telemetry client (ping, runtime gate, install gate) — see `iiq-sheets-telemetry/` for the shared source |
 | `Dashboard.gs` | Web-app entry point (`doGet`), registry-driven `getDashboardData()`, `showDashboardUrl` menu handler |
 | `ChartRegistry.gs` | Declarative sheet→chart(s) map — register new analytics sheets here or the dashboard won't discover them |
@@ -46,9 +47,10 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 |-------|------|---------|
 | Instructions | Static | Setup and usage guide |
 | Config | Manual | API settings, progress tracking |
-| AssetData | Data | Main asset data (38 columns: 35 API + 3 formula) |
+| AssetData | Data | Main asset data (43 columns: 35 API + 3 formula + 5 optional custom field) |
 | Locations | Reference | Location directory |
 | StatusTypes | Reference | Asset status type directory |
+| CustomFields | Reference | Asset custom field directory (Name, CustomFieldTypeId, EditorType) |
 | Logs | Data | Operation logs |
 
 ### Analytics Sheets (★ = default, created by Setup Spreadsheet)
@@ -105,6 +107,7 @@ iiQ Assets
 ├── Setup
 │   ├── Setup Spreadsheet
 │   ├── Verify Configuration
+│   ├── Refresh Custom Fields
 │   ├── Show Dashboard URL
 │   └── Setup Automated Triggers
 ├── Asset Data
@@ -158,7 +161,7 @@ iiQ Assets
 
 **Regeneration:** Analytics setup functions use `getOrCreateSheet` -- on regeneration, only the formula is refreshed (no delete/create/reformat). Formulas are live and auto-recalculate when AssetData changes; regeneration is only needed after code updates.
 
-## AssetData Column Layout (38 columns)
+## AssetData Column Layout (43 columns)
 
 | Col | Header | Source |
 |-----|--------|--------|
@@ -200,6 +203,9 @@ iiQ Assets
 | AJ | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
 | AK | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
 | AL | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
+| AM-AQ | CustomField1-5 | Optional, from `CUSTOM_FIELD_1`-`_5` in Config. See `CustomFields.gs`. |
+
+**Why the custom field block sits after the formula columns:** appending keeps `AgeDays`/`AgeYears`/`WarrantyStatus` at AJ-AL, so every analytics formula and every `DASH_COL` offset stays valid and an existing sheet upgrades by gaining headers instead of being rebuilt. `ASSET_CUSTOM_FIELD_HEADERS` in `AssetData.gs` is the single source of truth for the slot count.
 
 ### Analytics Formula Column Reference
 
@@ -220,6 +226,18 @@ iiQ Assets
 | Owner Last Name | **AA (OwnerLastName)** |
 | Owner Email | **AB (OwnerEmail)** |
 | Owner School ID | **AC (OwnerSchoolIdNumber)** |
+| Custom Fields | **AM-AQ (CustomField1-5)** |
+
+## Asset Custom Fields
+
+Up to `ASSET_CUSTOM_FIELD_COUNT` (5) district-defined asset custom fields land in AssetData columns AM-AQ. All logic is in `CustomFields.gs`.
+
+- **Zero per-asset cost.** Values are read from the `CustomFieldValues` array already hydrated on every item in the `/v1.0/assets` search response. Per run there is one definitions call, plus one locations sweep only if a configured field is an `IiqLocation` type.
+- **Slots take an id, not a name.** `/custom-fields/for/asset` returns one item per field-to-filter-set mapping, so the `CustomFields` sheet dedupes by `CustomFieldTypeId`. Names are accepted for convenience but are not unique within a district.
+- **Resolution is per-run and uncached.** `buildAssetCustomFieldContext(config)` returns `{ids, lookupMaps}` or `null` when no slot is configured; it is called once at the top of `loadAssetData` and `refreshAssetData`.
+- **Value translation.** `EditorType` 9/10 (Select/MultiSelect) resolve via the definition's `Options` JSON; 22 (IiqLocation) via the location directory. Multi-value fields join with a comma.
+- **Migration.** `ensureAssetCustomFieldColumns(sheet)` widens the grid and appends headers; `migrateConfigForAssetCustomFields()` appends the Config rows. Setup and migration share `buildCustomFieldConfigRows_()` so a migrated sheet is indistinguishable from a fresh one.
+- **Backfill.** A newly configured slot only fills rows the script rewrites. Full Reload backfills the fleet.
 
 ## API Endpoints Used
 
@@ -228,6 +246,7 @@ iiQ Assets
 | `/v1.0/assets?$p={page}&$s={size}` | POST | Bulk asset search with filters (deleted assets excluded by default) |
 | `/v2.0/locations/all?$s=1000` | GET | Location directory |
 | `/v1.0/assets/status/types?$s=100` | GET | Asset status types |
+| `/v1.0/custom-fields/for/asset` | POST | Asset custom field definitions (one row per field/filter-set mapping — dedupe by `CustomFieldTypeId`) |
 | `/v1.0/sites/roles` | GET | Site roles (for STUDENT_ROLE_ID) |
 | `/v1.0/users?$s=1` | POST | User count by filters (enrollment) |
 | `/v1.0/users/{userId}/activities` | GET | Per-user activity log — filtered client-side for asset assignment events (IndividualLookup) |
@@ -248,10 +267,12 @@ Optional:
 - `ASSET_BATCH_SIZE`: Assets per page for bulk load (default 500)
 - `REPLACEMENT_AGE_YEARS`: Device age threshold for replacement planning (default 4)
 - `NEXT_SCHOOL_YEAR_START`: Target date for replacement planning (default 2026-07-01, format YYYY-MM-DD)
+- `CUSTOM_FIELD_1` … `CUSTOM_FIELD_5`: Asset custom fields to surface as columns AM-AQ. Paste a `CustomFieldTypeId` from the `CustomFields` sheet; a display name is accepted but is not unique within a district.
 
 Progress Tracking (auto-managed):
 - `ASSET_LAST_PAGE`, `ASSET_TOTAL_PAGES`, `ASSET_COMPLETE`: Load progress
 - `LAST_REFRESH_DATE`: ISO timestamp of last incremental refresh
+- `CUSTOM_FIELD_1_ID` … `_5_ID`: What each slot resolved to, or `NOT_FOUND`. Written for diagnostics on every run and **never read back as a cache** — caching would leave an edited slot pulling the previously resolved field forever.
 
 Version Information (auto-managed):
 - `SCRIPT_VERSION`: Installed script version (from `SCRIPT_VERSION` constant in `Config.gs`)

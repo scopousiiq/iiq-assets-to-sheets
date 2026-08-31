@@ -9,6 +9,7 @@ function onOpen() {
     .addSubMenu(ui.createMenu('Setup')
       .addItem('Setup Spreadsheet', 'menuSetupSpreadsheet')
       .addItem('Verify Configuration', 'menuVerifyConfig')
+      .addItem('Refresh Custom Fields', 'menuRefreshCustomFields')
       .addItem('Show Dashboard URL', 'showDashboardUrl')
       .addSeparator()
       .addItem('Setup Automated Triggers', 'menuSetupTriggers')
@@ -127,12 +128,22 @@ function menuVerifyConfig() {
     try {
       const response = makeApiRequest('/v1.0/assets?$p=0&$s=1', 'POST', { Filters: [] });
       const total = response.Paging ? response.Paging.TotalRows : '?';
-      ui.alert('Configuration OK',
-        `API connection successful.\nTotal assets available: ${total}`,
-        ui.ButtonSet.OK);
+      const lines = [`API connection successful.`, `Total assets available: ${total}`];
+      lines.push.apply(lines, describeCustomFieldSlots(config));
+      ui.alert('Configuration OK', lines.join('\n'), ui.ButtonSet.OK);
     } catch (e) {
       ui.alert('API Connection Failed', e.message, ui.ButtonSet.OK);
     }
+  }
+}
+
+function menuRefreshCustomFields() {
+  const lock = acquireScriptLock();
+  if (!lock) { showOperationBusyMessage('Refresh Custom Fields'); return; }
+  try {
+    refreshAssetCustomFields();
+  } finally {
+    releaseScriptLock(lock);
   }
 }
 

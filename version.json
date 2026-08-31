@@ -1,6 +1,6 @@
 {
-  "version": "1.5.2",
-  "released": "2026-05-13",
+  "version": "1.6.0",
+  "released": "2026-08-31",
   "releaseUrl": "https://github.com/scopousiiq/iiq-assets-to-sheets/releases/latest",
-  "message": "AssetData now includes FundingSourceName and four LastVerification columns (Date, Type, Location, Success) pulled directly from the asset search payload. AssetData widens from 33 to 38 columns; formula columns AgeDays/AgeYears/WarrantyStatus shift from AE-AG to AJ-AL. Run Setup Spreadsheet (destructive) or Full Reload to rebuild AssetData with the new layout. Manage Deployments → New version to update the dashboard."
+  "message": "AssetData can now carry up to five of your district's asset custom fields in new columns AM-AQ. Run Setup > Refresh Custom Fields, paste a CustomFieldTypeId into CUSTOM_FIELD_1-5 on the Config sheet, then Full Reload to backfill. Purely additive: existing columns, analytics formulas, and the dashboard are unchanged, so no destructive re-setup is needed."
 }

@@ -115,6 +115,22 @@ function getAllLocations() {
 }
 
 /**
+ * All custom field definitions for assets.
+ * POST /v1.0/custom-fields/for/asset with an empty body returns every asset
+ * custom field. Each item carries CustomFieldTypeId (UUID) and
+ * CustomFieldType.Name (display name).
+ *
+ * Note the response is one item per field-to-filter-set mapping, not one per
+ * field — callers that list fields must deduplicate by CustomFieldTypeId.
+ *
+ * @returns {Array} - CustomFieldDetail objects
+ */
+function getAssetCustomFieldDefinitions() {
+  const response = makeApiRequest('/v1.0/custom-fields/for/asset', 'POST', {});
+  return response.Items || [];
+}
+
+/**
  * Get all asset status types
  * @returns {Array} - Array of status type objects
  */
