@@ -31,7 +31,7 @@ Create a new Google Sheet. The **Setup Spreadsheet** function creates all requir
 |------------|---------|
 | `Instructions` | Setup and usage guide (first tab) |
 | `Config` | API credentials and settings |
-| `AssetData` | Main asset inventory (33 columns: 30 API + 3 calculated) |
+| `AssetData` | Main asset inventory (38 columns: 35 API + 3 calculated) |
 | `Locations` | Location directory |
 | `StatusTypes` | Asset status types |
 | `Logs` | Operation logs |
@@ -136,9 +136,9 @@ Deleted assets in iiQ are automatically excluded by the API — they are never d
 
 ## Part 3: AssetData Column Layout
 
-The AssetData sheet has 33 columns: 30 from the API and 3 calculated by ARRAYFORMULA.
+The AssetData sheet has 38 columns: 35 from the API and 3 calculated by ARRAYFORMULA.
 
-### API Columns (A-AD)
+### API Columns (A-AI)
 
 | Col | Header | API Source |
 |-----|--------|------------|
@@ -172,16 +172,21 @@ The AssetData sheet has 33 columns: 30 from the API and 3 calculated by ARRAYFOR
 | AB | OwnerEmail | `Owner.Email` |
 | AC | OwnerSchoolIdNumber | `Owner.SchoolIdNumber` |
 | AD | LocationRoomName | `LocationRoom.Name` |
+| AE | FundingSourceName | `FundingSource.Name` |
+| AF | LastVerificationDate | `LastVerificationDateTime` |
+| AG | LastVerificationType | `LastVerificationTypeName` |
+| AH | LastVerificationLocation | `LastVerificationLocationName` |
+| AI | LastVerificationSuccess | `LastVerificationSuccessful` |
 
-### Calculated Columns (AE-AG)
+### Calculated Columns (AJ-AL)
 
 These are set as ARRAYFORMULAs in row 2 and spill down automatically:
 
 | Col | Header | Formula Logic |
 |-----|--------|---------------|
-| AE | AgeDays | `TODAY() - PurchasedDate` (falls back to CreatedDate if empty) |
-| AF | AgeYears | `AgeDays / 365.25` |
-| AG | WarrantyStatus | "Active" / "Expiring" (< 90 days) / "Expired" / "None" |
+| AJ | AgeDays | `TODAY() - PurchasedDate` (falls back to CreatedDate if empty) |
+| AK | AgeYears | `AgeDays / 365.25` |
+| AL | WarrantyStatus | "Active" / "Expiring" (< 90 days) / "Expired" / "None" |
 
 **Note on device age:** If PurchasedDate is empty (common when districts don't track purchases in iiQ), CreatedDate is used as a fallback. CreatedDate is when the asset record was added to iiQ — a reasonable proxy for device age. All analytics sheets follow this same logic.
 
@@ -422,7 +427,7 @@ For code updates: **Deploy → Manage deployments → Edit → New version** pub
 
 **4 KPI cards** computed directly from `AssetData`:
 - Total Assets — row count
-- Avg Age — mean of column AF (AgeYears)
+- Avg Age — mean of column AK (AgeYears)
 - Warranty Active % — share of column AG = "Active"
 - Assignment Rate % — share of rows with non-empty `OwnerId`
 

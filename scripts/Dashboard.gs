@@ -20,15 +20,15 @@
  * 0-indexed column positions in AssetData rows after getValues().
  * NOT for use with getRange (which is 1-indexed).
  *
- * Layout (post v1.4.1): A=AssetId, K=OwnerId, M=StatusName, P=PurchasePrice,
- * AF=AgeYears (formula), AG=WarrantyStatus (formula).
+ * Layout: A=AssetId, K=OwnerId, M=StatusName, P=PurchasePrice,
+ * AK=AgeYears (formula), AL=WarrantyStatus (formula).
  */
 const DASH_COL = {
   OWNER_ID: 10,         // K
   STATUS: 12,           // M
   PURCHASE_PRICE: 15,   // P
-  AGE_YEARS: 31,        // AF
-  WARRANTY_STATUS: 32   // AG
+  AGE_YEARS: 36,        // AK
+  WARRANTY_STATUS: 37   // AL
 };
 
 /**

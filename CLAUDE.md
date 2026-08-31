@@ -46,7 +46,7 @@ iiQ API  →  Google Apps Script  →  Google Sheets  →  Looker Studio / Power
 |-------|------|---------|
 | Instructions | Static | Setup and usage guide |
 | Config | Manual | API settings, progress tracking |
-| AssetData | Data | Main asset data (33 columns: 30 API + 3 formula) |
+| AssetData | Data | Main asset data (38 columns: 35 API + 3 formula) |
 | Locations | Reference | Location directory |
 | StatusTypes | Reference | Asset status type directory |
 | Logs | Data | Operation logs |
@@ -158,7 +158,7 @@ iiQ Assets
 
 **Regeneration:** Analytics setup functions use `getOrCreateSheet` -- on regeneration, only the formula is refreshed (no delete/create/reformat). Formulas are live and auto-recalculate when AssetData changes; regeneration is only needed after code updates.
 
-## AssetData Column Layout (33 columns)
+## AssetData Column Layout (38 columns)
 
 | Col | Header | Source |
 |-----|--------|--------|
@@ -192,9 +192,14 @@ iiQ Assets
 | AB | OwnerEmail | API (Owner.Email) |
 | AC | OwnerSchoolIdNumber | API (Owner.SchoolIdNumber) |
 | AD | LocationRoomName | API (LocationRoom.Name) |
-| AE | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
-| AF | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
-| AG | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
+| AE | FundingSourceName | API (FundingSource.Name) |
+| AF | LastVerificationDate | API (LastVerificationDateTime) |
+| AG | LastVerificationType | API (LastVerificationTypeName) |
+| AH | LastVerificationLocation | API (LastVerificationLocationName) |
+| AI | LastVerificationSuccess | API (LastVerificationSuccessful) |
+| AJ | AgeDays | ARRAYFORMULA: TODAY() - PurchasedDate (fallback CreatedDate) |
+| AK | AgeYears | ARRAYFORMULA: AgeDays / 365.25 |
+| AL | WarrantyStatus | ARRAYFORMULA: Active / Expiring / Expired / None |
 
 ### Analytics Formula Column Reference
 
@@ -204,8 +209,10 @@ iiQ Assets
 | Model | **E (ModelName)** |
 | Manufacturer | **F (ManufacturerName)** |
 | Status | **M (StatusName)** |
-| Warranty Status | **AG (WarrantyStatus)** |
-| Age (Years) | **AF (AgeYears)** |
+| Warranty Status | **AL (WarrantyStatus)** |
+| Age (Years) | **AK (AgeYears)** |
+| Funding Source | **AE (FundingSourceName)** |
+| Last Verification | **AF (LastVerificationDate)**, **AG (LastVerificationType)**, **AH (LastVerificationLocation)**, **AI (LastVerificationSuccess)** |
 | Location Room Name | **AD (LocationRoomName)** |
 | Open Tickets | **Y (OpenTickets)** |
 | Owner Full Name | **L (OwnerFullName)** |

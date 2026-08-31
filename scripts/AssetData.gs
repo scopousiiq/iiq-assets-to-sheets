@@ -4,7 +4,7 @@
  * Loads assets via paginated search with checkpoint resume.
  * Supports incremental refresh via ModifiedDate filter.
  *
- * Column layout (33 columns, A-AG):
+ * Column layout (38 columns, A-AL):
  *   A  AssetId            K  OwnerId
  *   B  AssetTag           L  OwnerFullName
  *   C  Name               M  StatusName
@@ -25,9 +25,14 @@
  *                         AB OwnerEmail
  *                         AC OwnerSchoolIdNumber
  *                         AD LocationRoomName
- *                         AE AgeDays (formula)
- *                         AF AgeYears (formula)
- *                         AG WarrantyStatus (formula)
+ *                         AE FundingSourceName
+ *                         AF LastVerificationDate
+ *                         AG LastVerificationType
+ *                         AH LastVerificationLocation
+ *                         AI LastVerificationSuccess
+ *                         AJ AgeDays (formula)
+ *                         AK AgeYears (formula)
+ *                         AL WarrantyStatus (formula)
  */
 
 const ASSET_HEADERS = [
@@ -43,10 +48,13 @@ const ASSET_HEADERS = [
   'OwnerFirstName', 'OwnerLastName',
   'OwnerEmail', 'OwnerSchoolIdNumber',
   'LocationRoomName',
+  'FundingSourceName',
+  'LastVerificationDate', 'LastVerificationType',
+  'LastVerificationLocation', 'LastVerificationSuccess',
   'AgeDays', 'AgeYears', 'WarrantyStatus'
 ];
-const ASSET_DATA_COLS = 30;  // Columns A-AD (API data)
-const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 33 (includes formula columns)
+const ASSET_DATA_COLS = 35;  // Columns A-AI (API data)
+const ASSET_TOTAL_COLS = ASSET_HEADERS.length; // 38 (includes formula columns)
 const MAX_RUNTIME_MS = 5.5 * 60 * 1000;
 
 // =============================================================================
@@ -220,13 +228,14 @@ function refreshAssetData(showUI) {
 
 /**
  * Extract one row of asset data from an API response item.
- * Returns array of ASSET_DATA_COLS values (columns A-AD).
+ * Returns array of ASSET_DATA_COLS values (columns A-AI).
  */
 function extractAssetRow(asset) {
   const model = asset.Model || {};
   const location = asset.Location || {};
   const owner = asset.Owner || {};
   const status = asset.AssetStatus || asset.Status || {};
+  const fundingSource = asset.FundingSource || {};
 
   return [
     asset.AssetId || '',
@@ -264,6 +273,13 @@ function extractAssetRow(asset) {
     owner.SchoolIdNumber || '',
     // Location room
     asset.LocationRoom?.Name || '',
+    // Funding source
+    fundingSource.Name || asset.FundingSourceName || '',
+    // Last verification (5 fields denormalized from the asset payload)
+    formatDate(asset.LastVerificationDateTime),
+    asset.LastVerificationTypeName || '',
+    asset.LastVerificationLocationName || '',
+    asset.LastVerificationSuccessful ?? '',
   ];
 }
 
