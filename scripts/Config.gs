@@ -4,7 +4,7 @@
  */
 
 /** Current script version — update when releasing new versions */
-const SCRIPT_VERSION = '1.5.2';
+const SCRIPT_VERSION = '1.6.0';
 
 /**
  * Telemetry endpoint — the deployed iiq-sheets-telemetry Web App /exec URL.
@@ -63,7 +63,23 @@ function getConfig() {
 
     // Incremental refresh
     lastRefreshDate: getStringValue(rawConfig['LAST_REFRESH_DATE']),
+
+    // Asset custom fields — each slot holds a CustomFieldTypeId or a field name
+    customFields: readCustomFieldSlots_(rawConfig),
   };
+}
+
+/**
+ * The CUSTOM_FIELD_1..N slot values, in slot order. The slot count comes from
+ * ASSET_CUSTOM_FIELD_COUNT in AssetData.gs, where the column layout is defined;
+ * resolution to CustomFieldTypeIds happens in CustomFields.gs, once per run.
+ */
+function readCustomFieldSlots_(rawConfig) {
+  const slots = [];
+  for (let n = 1; n <= ASSET_CUSTOM_FIELD_COUNT; n++) {
+    slots.push(getStringValue(rawConfig['CUSTOM_FIELD_' + n]));
+  }
+  return slots;
 }
 
 // =============================================================================

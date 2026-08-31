@@ -31,7 +31,7 @@ Create a new Google Sheet. The **Setup Spreadsheet** function creates all requir
 |------------|---------|
 | `Instructions` | Setup and usage guide (first tab) |
 | `Config` | API credentials and settings |
-| `AssetData` | Main asset inventory (38 columns: 35 API + 3 calculated) |
+| `AssetData` | Main asset inventory (43 columns: 35 API + 3 calculated + 5 optional custom fields) |
 | `Locations` | Location directory |
 | `StatusTypes` | Asset status types |
 | `Logs` | Operation logs |
@@ -136,7 +136,7 @@ Deleted assets in iiQ are automatically excluded by the API — they are never d
 
 ## Part 3: AssetData Column Layout
 
-The AssetData sheet has 38 columns: 35 from the API and 3 calculated by ARRAYFORMULA.
+The AssetData sheet has 43 columns: 35 from the API, 3 calculated by ARRAYFORMULA, and 5 optional custom field columns that stay empty until configured.
 
 ### API Columns (A-AI)
 
@@ -189,6 +189,20 @@ These are set as ARRAYFORMULAs in row 2 and spill down automatically:
 | AL | WarrantyStatus | "Active" / "Expiring" (< 90 days) / "Expired" / "None" |
 
 **Note on device age:** If PurchasedDate is empty (common when districts don't track purchases in iiQ), CreatedDate is used as a fallback. CreatedDate is when the asset record was added to iiQ — a reasonable proxy for device age. All analytics sheets follow this same logic.
+
+### Custom Field Columns (AM-AQ)
+
+| Col | Header | Source |
+|-----|--------|--------|
+| AM | CustomField1 | The asset custom field named by `CUSTOM_FIELD_1` in Config |
+| AN | CustomField2 | `CUSTOM_FIELD_2` |
+| AO | CustomField3 | `CUSTOM_FIELD_3` |
+| AP | CustomField4 | `CUSTOM_FIELD_4` |
+| AQ | CustomField5 | `CUSTOM_FIELD_5` |
+
+Empty until you configure a slot. See [Part 10: Custom Fields](#part-10-custom-fields-optional).
+
+**Why after the formula columns?** Appending keeps `AgeDays`/`AgeYears`/`WarrantyStatus` at AJ-AL, so every analytics formula and every dashboard column offset stays valid and an existing sheet upgrades by gaining headers rather than being rebuilt.
 
 ---
 
@@ -483,3 +497,54 @@ Use Looker Studio for:
 - Scheduled email delivery
 - More chart types (pie, geo, table, etc.)
 
+---
+
+## Part 10: Custom Fields (Optional)
+
+Districts define their own fields on assets in iiQ — funding cycle, insurance tier, take-home
+status, whatever they track. Up to five of them can be pulled into AssetData as columns AM-AQ.
+
+### Setup
+
+1. **iiQ Assets > Setup > Refresh Custom Fields** — builds the `CustomFields` sheet listing every
+   asset custom field in your district, and adds the `CUSTOM_FIELD_*` rows to the Config sheet.
+2. Copy the **CustomFieldTypeId** (column B) of the field you want.
+3. Paste it into `CUSTOM_FIELD_1` (through `_5`) on the Config sheet.
+4. **iiQ Assets > Asset Data > Full Reload** to backfill the column for the whole fleet.
+
+A field's display **name** also works in a slot, but ids are unambiguous: a district can define two
+different fields sharing one name, and a name lookup then picks one of them arbitrarily.
+
+### Checking your work
+
+After the next load or refresh, `CUSTOM_FIELD_n_ID` on the Config sheet shows the
+`CustomFieldTypeId` each slot resolved to, or `NOT_FOUND`. **Verify Configuration** reports the same
+thing with the field's name, and checks the id against your district's actual field list — so a
+well-formed but wrong id is caught rather than reported as OK. The `Logs` sheet records each
+resolution too.
+
+### Cost
+
+Values come out of the `CustomFieldValues` array already present on every asset in the search
+response, so no per-asset request is added. Per loading run there is one
+`POST /v1.0/custom-fields/for/asset` call, plus one locations sweep if a configured field points at
+an iiQ location. Configure no slots and neither call is made.
+
+### Value translation
+
+Dropdown (`Select`), multi-select (`MultiSelect`), and iiQ-location fields store ids rather than
+text. Those are translated to display names automatically — from the field definition's options for
+select fields, and from the location directory for location fields. Multi-value fields are joined
+with a comma. Other editor types store readable values and are passed through as-is.
+
+### Changing a slot
+
+The column keeps whatever the previous field wrote until those rows are rewritten. Change the slot,
+then run **Full Reload** so the whole column reflects one field. Resolution is never cached, so the
+new field takes effect on the next run with no other action.
+
+### Adding a sixth slot
+
+`ASSET_CUSTOM_FIELD_HEADERS` in `scripts/AssetData.gs` is the single source of truth — the slot
+count, the Config rows, and the column block width are all derived from it. Add a header, then rerun
+**Setup Spreadsheet** (or widen an existing AssetData sheet by hand).

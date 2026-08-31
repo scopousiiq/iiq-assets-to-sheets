@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 
 ---
 
+## v1.6.0 — Asset custom fields (2026-08-31)
+
+### Added
+- **Up to five district-defined asset custom fields as AssetData columns AM-AQ** (`CustomField1`-`CustomField5`). Values are read out of the `CustomFieldValues` array already present on every item in the `/v1.0/assets` search response, so no per-asset request is added — the only extra traffic is a single `POST /v1.0/custom-fields/for/asset` per loading run.
+- **`CustomFields` sheet** listing every asset custom field in the district (Name, CustomFieldTypeId, EditorType). Populated by the new **iiQ Assets > Setup > Refresh Custom Fields** menu item. Rows are deduplicated by `CustomFieldTypeId`, because `/custom-fields/for/asset` returns one row per field-to-filter-set mapping rather than one per field.
+- **`CUSTOM_FIELD_1`-`CUSTOM_FIELD_5` Config keys.** Paste a `CustomFieldTypeId` from the `CustomFields` sheet. A field display name is also accepted, but ids are unambiguous — a district can define two different fields sharing one name.
+- **`CUSTOM_FIELD_1_ID`-`_5_ID` Config keys (auto-managed)** showing what each slot resolved to, or `NOT_FOUND`. Written for diagnostics on every run and never read back as a cache, so editing a slot cannot leave it pulling the previously resolved field.
+- **Verify Configuration now reports custom field slots**, checking each configured id against the district's actual field list rather than just its GUID shape.
+- Dropdown, multi-select, and iiQ-location custom fields have their stored ids translated to display names. Multi-value fields are joined with a comma.
+
+### Changed
+- **AssetData widens from 38 to 43 columns.** The custom field block is appended *after* the formula columns, so `AgeDays`/`AgeYears`/`WarrantyStatus` stay at `AJ`/`AK`/`AL`. Every analytics formula and every dashboard column offset is unchanged.
+- `Remove Duplicates` now carries custom field values through deduplication instead of dropping them.
+- `scripts/Config.gs` `SCRIPT_VERSION` -> `1.6.0`.
+
+### Fixed
+- `Setup Spreadsheet` and `Clear Data + Reset Progress` addressed AssetData's full column width without first growing the sheet's grid, which throws on a grid narrower than the layout. Both now widen the grid first.
+
+### Upgrade Notes
+This release is additive — no destructive re-setup, and no `BEARER_TOKEN` to save and restore.
+
+1. Update all `.gs` files from the `scripts/` directory (note the new `CustomFields.gs`).
+2. Reload the spreadsheet so the menu picks up **Refresh Custom Fields**.
+3. Run **iiQ Assets > Setup > Refresh Custom Fields**. This creates the `CustomFields` sheet and adds the `CUSTOM_FIELD_*` rows to your existing Config sheet.
+4. Copy a `CustomFieldTypeId` from the `CustomFields` sheet into `CUSTOM_FIELD_1` (through `_5`) on the Config sheet.
+5. Run **iiQ Assets > Asset Data > Full Reload** to backfill the new columns for the whole fleet. Without it, the columns fill in gradually as assets change.
+
+Districts that configure no custom fields are unaffected: the columns stay empty and no extra API calls are made.
+
+---
+
 ## v1.5.2 — Funding source and last verification columns (2026-05-13)
 
 ### Added

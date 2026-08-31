@@ -62,7 +62,8 @@ Two Config keys control the ReplacementPlanning and ReplacementForecast sheets:
 ## What You Get
 
 **Data loaded automatically from your iiQ instance:**
-- Complete asset inventory (38 columns) — identity, device model, location, owner (full name, first, last, email, school ID), room assignment, status, purchase info, funding source, storage, tickets, last verification (date, type, location, success), and more
+- Complete asset inventory (43 columns) — identity, device model, location, owner (full name, first, last, email, school ID), room assignment, status, purchase info, funding source, storage, tickets, last verification (date, type, location, success), and more
+- Up to 5 of your district's own asset custom fields, pulled in as extra columns
 - Location directory and asset status types
 - Student enrollment and device coverage per school (optional)
 
