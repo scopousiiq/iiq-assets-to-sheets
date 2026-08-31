@@ -21,6 +21,7 @@ All notable changes to this project are documented here.
 
 ### Fixed
 - `Setup Spreadsheet` and `Clear Data + Reset Progress` addressed AssetData's full column width without first growing the sheet's grid, which throws on a grid narrower than the layout. Both now widen the grid first.
+- **`setConfigValue` was defined twice in `Config.gs`.** The later, uncached definition shadowed the row-cached one, so every Config write re-read the entire Config sheet and the `cacheConfigRowPositions_()` calls in the asset load loop did nothing. The duplicate is removed and the cached implementation is now the one that runs — the load loop writes a checkpoint per page, so this was squarely on the hot path. Two hazards that come with actually using the cache are closed: a cache miss now rebuilds before appending (appending a key that already has a row would have left two rows for it, with `getConfig()` silently reading the later one), and `setupConfigSheet` resets the cache when it rebuilds the sheet. The invariant is documented on the cache itself.
 
 ### Upgrade Notes
 This release is additive — no destructive re-setup, and no `BEARER_TOKEN` to save and restore.

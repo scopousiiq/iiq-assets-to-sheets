@@ -73,6 +73,7 @@ function getOrCreateSheet(ss, name, headers, tabColor, opts) {
 function setupConfigSheet(ss) {
   deleteSheetIfExists(ss, 'Config');
   const sheet = ss.insertSheet('Config');
+  resetConfigCache(); // row positions from the old sheet no longer apply
   sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]).setFontWeight('bold');
 
   const configRows = [
