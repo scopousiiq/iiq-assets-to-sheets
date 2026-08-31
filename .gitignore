@@ -3,5 +3,6 @@
 *.swo
 *~
 .clasp.json
+.clasp.*.json
 .mcp.json
 REQUIREMENTS-*.md
